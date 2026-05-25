@@ -1,0 +1,116 @@
+# ============================================================
+# .gitignore - Sistem Pencarian Berita Semantic Search
+# ============================================================
+
+# ============================================================
+# ENVIRONMENT FILES (JANGAN DI-COMMIT!)
+# ============================================================
+**/.env
+**/.env.local
+**/.env.production
+**/.env.development
+**/.env.test
+backend/.env
+frontend/.env.local
+
+# ============================================================
+# BACKEND - Python
+# ============================================================
+
+# Virtual Environment
+backend/venv/
+backend/.venv/
+backend/env/
+
+# Python cache
+backend/**/__pycache__/
+backend/**/*.py[cod]
+backend/**/*.pyo
+backend/**/*.pyd
+backend/**/*.so
+
+# Build artifacts
+backend/build/
+backend/dist/
+backend/*.egg-info/
+backend/.eggs/
+
+# PyTest
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+
+# Jupyter
+backend/.ipynb_checkpoints
+
+# ============================================================
+# BACKEND - DATA (FAISS Index & ML Models)
+# ============================================================
+# Jangan commit file besar ini ke Git
+backend/data/
+backend/*.faiss
+backend/*.pkl
+
+# Hugging Face model cache (auto-downloaded)
+backend/.cache/
+backend/models/
+
+# ============================================================
+# FRONTEND - Next.js / Node.js
+# ============================================================
+
+# Dependencies
+frontend/node_modules/
+
+# Build output
+frontend/.next/
+frontend/out/
+frontend/dist/
+
+# Next.js cache
+frontend/.next/cache
+
+# npm/yarn/pnpm lock files (opsional, bisa di-include)
+# frontend/package-lock.json
+
+# Debug logs
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# TypeScript
+frontend/*.tsbuildinfo
+
+# ============================================================
+# SISTEM OPERASI
+# ============================================================
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+
+# ============================================================
+# EDITOR / IDE
+# ============================================================
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# ============================================================
+# LOGS
+# ============================================================
+*.log
+logs/
+backend/logs/
