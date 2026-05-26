@@ -10,27 +10,24 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        {/* Background Animation Removed for Minimalist Look */}
-
-        {/* Navigation */}
         <nav className="navbar">
-          <div className="container flex items-center justify-between">
+          <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
             <Link href="/" style={{ textDecoration: 'none' }}>
-              <h2 className="text-gradient">SemanticSearch</h2>
+              <h2 className="text-gradient" style={{ fontSize: 'clamp(1rem, 3vw, 1.3rem)' }}>SemanticSearch</h2>
             </Link>
-            {/* <div className="nav-links">
+            <div className="nav-links">
               <Link href="/" className="nav-link">Search</Link>
-              <Link href="/realtime" className="nav-link">Realtime</Link>
+              <Link href="/realtime" className="nav-link">🔴 Realtime</Link>
               <Link href="/dashboard" className="nav-link">Dashboard</Link>
-            </div> */}
+            </div>
           </div>
         </nav>
 
-        {/* Main Content */}
-        <main style={{ padding: '2rem 0' }}>
+        <main style={{ padding: '1rem 0 3rem' }}>
           {children}
         </main>
       </body>
     </html>
   );
 }
+

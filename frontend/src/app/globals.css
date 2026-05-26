@@ -200,13 +200,14 @@ h1, h2, h3, h4, h5, h6 {
 .nav-links {
   display: flex;
   gap: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .nav-link {
   color: var(--text-muted);
   text-decoration: none;
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   transition: color 0.2s ease;
 }
@@ -214,6 +215,17 @@ h1, h2, h3, h4, h5, h6 {
 .nav-link:hover, .nav-link.active {
   color: var(--text-main);
 }
+
+/* Responsive navbar */
+@media (max-width: 480px) {
+  .nav-links {
+    gap: 0.9rem;
+  }
+  .nav-link {
+    font-size: 0.82rem;
+  }
+}
+
 
 /* Score Badge */
 .score-badge {
