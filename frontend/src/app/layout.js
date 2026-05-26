@@ -10,9 +10,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        {/* Background Animation */}
-        <div className="bg-orb orb-1"></div>
-        <div className="bg-orb orb-2"></div>
+        {/* Background Animation Removed for Minimalist Look */}
 
         {/* Navigation */}
         <nav className="navbar">
