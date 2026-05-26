@@ -68,17 +68,56 @@ class EmbedderService:
         Load model menggunakan fastembed (ONNX).
         RAM: ~200-400MB (vs ~1.2GB sentence-transformers+torch)
         """
+        import shutil
         from fastembed import TextEmbedding
-        
-        # Model multilingual yang support Bahasa Indonesia via ONNX
-        # Alternatif ringan untuk paraphrase-multilingual-MiniLM-L12-v2
-        FASTEMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-        
-        logger.info(f"⏳ [RASPI MODE] Loading fastembed model: {FASTEMBED_MODEL}...")
-        self._model = TextEmbedding(model_name=FASTEMBED_MODEL)
-        self._backend = "fastembed"
-        self._model_loaded = True
-        logger.info(f"✅ [RASPI MODE] Model fastembed berhasil di-load (ONNX, hemat RAM!)")
+
+        # Model multilingual via ONNX - urutan prioritas (dari paling ringan)
+        FASTEMBED_MODELS = [
+            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+            "BAAI/bge-m3",  # fallback multilingual yang lebih stabil
+        ]
+
+        last_error = None
+        for model_name in FASTEMBED_MODELS:
+            try:
+                logger.info(f"⏳ [RASPI MODE] Loading fastembed model: {model_name}...")
+                self._model = TextEmbedding(model_name=model_name)
+                # Warm-up test: pastikan model benar-benar bisa dipakai
+                test_result = list(self._model.embed(["test"]))
+                if not test_result:
+                    raise ValueError("Model menghasilkan output kosong")
+
+                self._backend = "fastembed"
+                self._model_loaded = True
+                logger.info(f"✅ [RASPI MODE] Model '{model_name}' berhasil di-load (ONNX, hemat RAM!)")
+                return
+
+            except Exception as e:
+                last_error = e
+                logger.warning(f"⚠️ Gagal load model '{model_name}': {e}")
+
+                # Jika error terkait file tidak ditemukan, hapus cache korup dan coba lagi
+                if "NO_SUCHFILE" in str(e) or "File doesn't exist" in str(e) or "does not exist" in str(e):
+                    cache_dir = "/tmp/fastembed_cache"
+                    if os.path.exists(cache_dir):
+                        logger.info(f"🧹 Menghapus cache korup: {cache_dir}")
+                        shutil.rmtree(cache_dir, ignore_errors=True)
+                    logger.info(f"🔄 Mencoba download ulang model...")
+                    try:
+                        self._model = TextEmbedding(model_name=model_name)
+                        test_result = list(self._model.embed(["test"]))
+                        if test_result:
+                            self._backend = "fastembed"
+                            self._model_loaded = True
+                            logger.info(f"✅ [RASPI MODE] Model '{model_name}' berhasil di-load setelah cache di-reset!")
+                            return
+                    except Exception as e2:
+                        logger.warning(f"⚠️ Retry gagal untuk '{model_name}': {e2}")
+                        last_error = e2
+                        continue
+
+        raise ImportError(f"Semua fastembed model gagal di-load. Error terakhir: {last_error}")
+
 
     def _load_sentence_transformers(self):
         """
