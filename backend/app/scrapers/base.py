@@ -139,8 +139,8 @@ class BaseScraper(ABC):
                 )
                 response.raise_for_status()
                 response.encoding = response.apparent_encoding or "utf-8"
-
-                soup = BeautifulSoup(response.text, "lxml")
+                # Gunakan html.parser bawaan Python agar lebih kompatibel di Raspberry Pi
+                soup = BeautifulSoup(response.text, "html.parser")
                 self.logger.debug(f"✅ Fetched: {url}")
                 return soup
 
