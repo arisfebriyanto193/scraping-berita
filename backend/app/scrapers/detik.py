@@ -26,10 +26,6 @@ class DetikScraper(BaseScraper):
     # Kategori Detik yang akan di-scrape
     CATEGORIES = {
         "news": f"{settings.DETIK_BASE_URL}/terpopuler",
-        "finance": f"https://finance.detik.com",
-        "sport": f"https://sport.detik.com",
-        "inet": f"https://inet.detik.com",
-        "hot": f"https://hot.detik.com",
     }
 
     def scrape_latest(self, max_articles: int = 20) -> List[ArticleData]:

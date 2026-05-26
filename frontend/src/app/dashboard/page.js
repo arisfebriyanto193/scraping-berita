@@ -40,7 +40,7 @@ export default function Dashboard() {
     setScrapeLoading(true);
     setScrapeResult(null);
     try {
-      const res = await triggerManualScrape(['all'], 5); // Just 5 max for demo
+      const res = await triggerManualScrape(['all'], 30); // 30 artikel per sumber = max 300 artikel
       setScrapeResult(res);
       // Refresh stats
       fetchDashboardData();

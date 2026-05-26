@@ -23,10 +23,6 @@ class CNNScraper(BaseScraper):
 
     SECTIONS = [
         f"{settings.CNN_BASE_URL}/nasional",
-        f"{settings.CNN_BASE_URL}/ekonomi",
-        f"{settings.CNN_BASE_URL}/internasional",
-        f"{settings.CNN_BASE_URL}/teknologi",
-        f"{settings.CNN_BASE_URL}/olahraga",
     ]
 
     def scrape_latest(self, max_articles: int = 20) -> List[ArticleData]:

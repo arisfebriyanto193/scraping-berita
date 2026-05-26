@@ -23,10 +23,6 @@ class TribunScraper(BaseScraper):
 
     SECTIONS = [
         f"{settings.TRIBUN_BASE_URL}/nasional",
-        f"{settings.TRIBUN_BASE_URL}/bisnis-dan-keuangan",
-        f"{settings.TRIBUN_BASE_URL}/superskor",
-        f"{settings.TRIBUN_BASE_URL}/techno",
-        f"{settings.TRIBUN_BASE_URL}/parapuan",
     ]
 
     def scrape_latest(self, max_articles: int = 20) -> List[ArticleData]:

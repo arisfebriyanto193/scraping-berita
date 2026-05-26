@@ -22,11 +22,7 @@ class AntaraScraper(BaseScraper):
     BASE_URL = settings.ANTARA_BASE_URL
 
     SECTIONS = [
-        f"{settings.ANTARA_BASE_URL}/berita/terkini",
         f"{settings.ANTARA_BASE_URL}/berita/nasional",
-        f"{settings.ANTARA_BASE_URL}/berita/ekonomi-bisnis",
-        f"{settings.ANTARA_BASE_URL}/berita/olahraga",
-        f"{settings.ANTARA_BASE_URL}/berita/internasional",
     ]
 
     def scrape_latest(self, max_articles: int = 20) -> List[ArticleData]:

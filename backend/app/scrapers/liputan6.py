@@ -22,11 +22,7 @@ class Liputan6Scraper(BaseScraper):
     BASE_URL = settings.LIPUTAN6_BASE_URL
 
     SECTIONS = [
-        f"{settings.LIPUTAN6_BASE_URL}/tag/berita-terkini",
-        f"{settings.LIPUTAN6_BASE_URL}/bisnis",
-        f"{settings.LIPUTAN6_BASE_URL}/tekno",
-        f"{settings.LIPUTAN6_BASE_URL}/bola",
-        f"{settings.LIPUTAN6_BASE_URL}/lifestyle",
+        f"{settings.LIPUTAN6_BASE_URL}/news",
     ]
 
     def scrape_latest(self, max_articles: int = 20) -> List[ArticleData]:

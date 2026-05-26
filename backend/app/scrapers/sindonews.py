@@ -20,11 +20,7 @@ class SindonewsScraper(BaseScraper):
     BASE_URL = settings.SINDONEWS_BASE_URL
 
     SECTIONS = [
-        f"{settings.SINDONEWS_BASE_URL}/terkini",
         f"https://nasional.sindonews.com",
-        f"https://ekbis.sindonews.com",
-        f"https://tekno.sindonews.com",
-        f"https://sport.sindonews.com",
     ]
 
     def scrape_latest(self, max_articles: int = 20) -> List[ArticleData]:

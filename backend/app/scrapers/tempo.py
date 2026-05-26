@@ -23,10 +23,6 @@ class TempoScraper(BaseScraper):
 
     SECTIONS = [
         f"{settings.TEMPO_BASE_URL}/nasional/",
-        f"{settings.TEMPO_BASE_URL}/bisnis/",
-        f"{settings.TEMPO_BASE_URL}/dunia/",
-        f"{settings.TEMPO_BASE_URL}/metro/",
-        f"{settings.TEMPO_BASE_URL}/seleb/",
     ]
 
     def scrape_latest(self, max_articles: int = 20) -> List[ArticleData]:

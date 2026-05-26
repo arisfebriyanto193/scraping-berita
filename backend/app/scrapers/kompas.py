@@ -22,11 +22,7 @@ class KompasScraper(BaseScraper):
     BASE_URL = settings.KOMPAS_BASE_URL
 
     SECTIONS = [
-        f"{settings.KOMPAS_BASE_URL}/tag/berita-terkini",
         f"{settings.KOMPAS_BASE_URL}/nasional",
-        f"{settings.KOMPAS_BASE_URL}/regional",
-        f"{settings.KOMPAS_BASE_URL}/money",
-        f"{settings.KOMPAS_BASE_URL}/tekno",
     ]
 
     def scrape_latest(self, max_articles: int = 20) -> List[ArticleData]:

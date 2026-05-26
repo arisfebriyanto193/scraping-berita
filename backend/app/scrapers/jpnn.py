@@ -23,7 +23,7 @@ class JPNNScraper(BaseScraper):
         f"{settings.JPNN_BASE_URL}/berita/terkini",
         f"{settings.JPNN_BASE_URL}/nasional",
         f"{settings.JPNN_BASE_URL}/ekonomi",
-        f"{settings.JPNN_BASE_URL}/bola",
+        f"{settings.JPNN_BASE_URL}/olahraga",
         f"{settings.JPNN_BASE_URL}/teknologi",
     ]
 

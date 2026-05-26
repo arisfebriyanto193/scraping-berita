@@ -20,11 +20,7 @@ class RepublikaScraper(BaseScraper):
     BASE_URL = settings.REPUBLIKA_BASE_URL
 
     SECTIONS = [
-        f"{settings.REPUBLIKA_BASE_URL}/berita/terkini",
         f"{settings.REPUBLIKA_BASE_URL}/berita/nasional",
-        f"{settings.REPUBLIKA_BASE_URL}/berita/ekonomi",
-        f"{settings.REPUBLIKA_BASE_URL}/berita/internasional",
-        f"{settings.REPUBLIKA_BASE_URL}/berita/olahraga",
     ]
 
     def scrape_latest(self, max_articles: int = 20) -> List[ArticleData]:

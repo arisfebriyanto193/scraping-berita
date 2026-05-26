@@ -60,7 +60,9 @@ export default function Home() {
         });
       }
 
-      setResults(res.results || []);
+      // Urutkan dari distance terkecil (paling relevan) ke terbesar
+      const sorted = (res.results || []).sort((a, b) => (a.distance ?? 1) - (b.distance ?? 1));
+      setResults(sorted);
       setSearchTime(res.query_time || 0);
       setTotalResults(res.total || 0);
     } catch (error) {
@@ -186,10 +188,10 @@ export default function Home() {
                 {article.source}
               </span>
               
-              {(article.similarity_score !== undefined || article.combined_score !== undefined) && (
-                <div className="score-badge">
+              {article.distance !== undefined && (
+                <div className="score-badge" title="Sentence Embedding Score: mendekati 0 = paling relevan">
                   <Sparkles size={12} />
-                  {((article.combined_score || article.similarity_score) * 100).toFixed(1)}% Match
+                  Score: {article.distance.toFixed(4)}
                 </div>
               )}
             </div>
