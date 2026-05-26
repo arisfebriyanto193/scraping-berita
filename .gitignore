@@ -13,6 +13,9 @@
 backend/.env
 frontend/.env.local
 
+backend-realtime/node_modules
+backend-realtime/model-cache
+
 # ============================================================
 # BACKEND - Python
 # ============================================================
