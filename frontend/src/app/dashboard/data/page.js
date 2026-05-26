@@ -3,18 +3,17 @@
 import { useState } from 'react';
 import { Search, Sparkles, Filter, Calendar, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
-import { searchRealtime } from '@/services/api';
+import { searchSemantic, searchHybrid, searchKeyword, searchRealtime } from '@/services/api';
 
-export default function RealtimeSearch() {
+export default function Home() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingSource, setLoadingSource] = useState(null); // track which quick-source is loading
-  const [activeSource, setActiveSource] = useState(null);   // highlight active quick-source
   const [searchTime, setSearchTime] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
 
   // Search Settings
+  const [searchMode, setSearchMode] = useState('semantic'); // 'semantic', 'hybrid', 'keyword'
   const [showFilters, setShowFilters] = useState(false);
 
   // Filters
@@ -25,8 +24,7 @@ export default function RealtimeSearch() {
     date_to: '',
   });
 
-  // Realtime backend only supports these platforms currently
-  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo'];
+  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'liputan6', 'tribun', 'antara', 'sindonews', 'republika', 'jpnn'];
   const DATE_PRESETS = [
     { value: '', label: 'All Time' },
     { value: 'today', label: 'Today' },
@@ -43,6 +41,7 @@ export default function RealtimeSearch() {
     setResults([]);
 
     try {
+      let res;
       // Clean up filters to remove empty arrays/strings
       const activeFilters = {};
       if (filters.sources.length > 0) activeFilters.sources = filters.sources;
@@ -50,9 +49,22 @@ export default function RealtimeSearch() {
       if (filters.date_from) activeFilters.date_from = filters.date_from;
       if (filters.date_to) activeFilters.date_to = filters.date_to;
 
-      const res = await searchRealtime({ query, filters: activeFilters, top_k: 10 });
+      if (searchMode === 'semantic') {
+        res = await searchSemantic({ query, filters: activeFilters, top_k: 20, threshold: 0.3 });
+      } else if (searchMode === 'hybrid') {
+        res = await searchHybrid({
+          query,
+          keywords: query.split(' ').filter(w => w.length > 3),
+          filters: activeFilters
+        });
+      } else {
+        res = await searchKeyword({
+          keywords: query.split(' '),
+          filters: activeFilters
+        });
+      }
 
-      // Sort by distance (smallest = most relevant)
+      // Urutkan dari distance terkecil (paling relevan) ke terbesar
       const sorted = (res.results || []).sort((a, b) => (a.distance ?? 1) - (b.distance ?? 1));
       setResults(sorted);
       setSearchTime(res.query_time || 0);
@@ -74,100 +86,45 @@ export default function RealtimeSearch() {
     });
   };
 
-  /**
-   * Langsung ambil 10 berita terbaru dari platform tertentu.
-   * Tidak menyentuh state filter & tidak butuh query.
-   */
-  const handleQuickSource = async (source) => {
-    setLoadingSource(source);
-    setActiveSource(source);
-    setResults([]);
-    setSearchTime(0);
-    setTotalResults(0);
-
-    try {
-      // query: '' → backend akan skip embedding & langsung ambil berita nasional/terpopuler
-      const res = await searchRealtime({ query: '', filters: { sources: [source] }, top_k: 10 });
-
-      setResults(res.results || []);
-      setSearchTime(res.query_time || 0);
-      setTotalResults((res.results || []).length);
-    } catch (error) {
-      console.error('[QuickSource] Error:', error);
-      alert(error.message);
-    } finally {
-      setLoadingSource(null);
-    }
-  };
-
   return (
     <div className="container animate-fade-in">
       {/* Hero Search Section */}
       <div style={{ textAlign: 'center', margin: '4rem 0 3rem' }}>
         <h1 className="text-gradient" style={{ fontSize: '3rem', marginBottom: '1rem' }}>
-          Realtime Search
+          Semantic Search
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', marginBottom: '2rem' }}>
-          Live News Scraping & Sentence Embedding
+          Sentence Embedding
         </p>
 
         <form onSubmit={handleSearch} style={{ maxWidth: '800px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', gap: '1rem', position: 'relative' }}>
             <div style={{ position: 'relative', flex: 1 }}>
-              <Search style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
+              <Search style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={20} />
               <input
                 type="text"
                 className="input-glass w-full"
-                style={{ paddingLeft: '2.75rem', paddingRight: '1rem', height: '44px', fontSize: '1rem' }}
-                placeholder="Cari berita terkini berdasarkan makna..."
+                style={{ paddingLeft: '3rem', fontSize: '1.1rem', height: '56px' }}
+                placeholder="Tulis apa saja yang ingin Anda cari berdasarkan makna..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={loading}
-              style={{ height: '44px', padding: '0 1.25rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}
-            >
-              {loading ? <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div> : <><Sparkles size={16} /> Search</>}
+            <button type="submit" className="btn-primary" disabled={loading} style={{ height: '56px', minWidth: '140px' }}>
+              {loading ? <div className="spinner"></div> : <><Sparkles size={20} /> Search</>}
             </button>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginRight: '4px', whiteSpace: 'nowrap' }}>Berita Terbaru:</span>
-              {PLATFORMS.map(p => {
-                const isActive  = activeSource === p && !query;
-                const isLoading = loadingSource === p;
-                return (
-                  <button
-                    key={`quick-${p}`}
-                    type="button"
-                    disabled={loadingSource !== null}
-                    className="btn-glass"
-                    style={{
-                      fontSize: '0.85rem',
-                      padding: '4px 14px',
-                      textTransform: 'capitalize',
-                      background:   isActive  ? 'var(--primary)' : '',
-                      borderColor:  isActive  ? 'var(--primary)' : '',
-                      opacity:      loadingSource && !isLoading ? 0.5 : 1,
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                    }}
-                    onClick={() => handleQuickSource(p)}
-                  >
-                    {isLoading && <div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }} />}
-                    {p}
-                  </button>
-                );
-              })}
+          <div className="flex items-center justify-between mt-4">
+            <div className="flex gap-2">
+              <button type="button" className={`btn-glass ${searchMode === 'semantic' ? 'active' : ''}`} style={{ background: searchMode === 'semantic' ? 'rgba(99, 102, 241, 0.2)' : '' }} onClick={() => setSearchMode('semantic')}>Semantic</button>
+              
+              <button type="button" className={`btn-glass ${searchMode === 'hybrid' ? 'active' : ''}`} style={{ background: searchMode === 'hybrid' ? 'rgba(99, 102, 241, 0.2)' : '' }} onClick={() => setSearchMode('hybrid')}>Hybrid</button>
+
+              <button type="button" className={`btn-glass ${searchMode === 'keyword' ? 'active' : ''}`} style={{ background: searchMode === 'keyword' ? 'rgba(99, 102, 241, 0.2)' : '' }} onClick={() => setSearchMode('keyword')}>Keyword</button>
             </div>
-            <button
-              type="button"
-              className="btn-glass flex items-center justify-center gap-2 w-full sm:w-auto"
-              onClick={() => setShowFilters(!showFilters)}
-            >
+
+            <button type="button" className="btn-glass flex items-center gap-2" onClick={() => setShowFilters(!showFilters)}>
               <Filter size={16} /> Filters {filters.sources.length > 0 && `(${filters.sources.length})`}
             </button>
           </div>
@@ -234,7 +191,7 @@ export default function RealtimeSearch() {
                         </label>
                       ))}
                     </div>
-                    <button type="button" className="btn-glass mt-2" onClick={() => setFilters({ sources: [], date_preset: '', date_from: '', date_to: '' })}>Reset Filter</button>
+                 <button type="button" className="btn-glass mt-2" onClick={() => setFilters({ sources: [], date_preset: '', date_from: '', date_to: '' })}>Reset Filter</button>
                   </div>
                 </div>
               </div>
@@ -250,27 +207,21 @@ export default function RealtimeSearch() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '1.5rem' }}
-           className="grid-responsive">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3">
         {results.map((article, idx) => (
-          <div
-            key={`${article.id || article.url}-${idx}`}
-            className="glass-card"
-            style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
-          >
-            {/* Top: source badge + score */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div key={`${article.id}-${idx}`} className="glass-card flex flex-col" style={{ padding: '1.5rem', height: '100%' }}>
+            <div className="flex justify-between items-center mb-4">
               <span style={{
                 background: 'rgba(255,255,255,0.1)',
-                padding: '3px 8px',
+                padding: '4px 8px',
                 borderRadius: '4px',
-                fontSize: '0.75rem',
+                fontSize: '0.8rem',
                 textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
+                letterSpacing: '1px'
               }}>
                 {article.source}
               </span>
+
               {article.distance !== undefined && (
                 <div className="score-badge" title="Sentence Embedding Score: mendekati 0 = paling relevan">
                   <Sparkles size={12} />
@@ -279,29 +230,23 @@ export default function RealtimeSearch() {
               )}
             </div>
 
-            {/* Title */}
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, lineHeight: 1.4, margin: 0 }}>
-              <a href={article.url} target="_blank" rel="noopener noreferrer"
-                style={{ color: 'white', textDecoration: 'none' }}>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem', flexGrow: 0 }}>
+              <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ color: 'white', textDecoration: 'none' }}>
                 {article.title}
               </a>
             </h3>
 
-            {/* Excerpt */}
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', lineHeight: 1.6, margin: 0, flexGrow: 1 }}>
-              {article.content ? article.content.substring(0, 130) + '...' : ''}
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem', flexGrow: 1 }}>
+              {article.content.substring(0, 150)}...
             </p>
 
-            {/* Footer: date + read */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid var(--surface-border)', marginTop: 'auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                <Calendar size={13} />
+            <div className="flex justify-between items-center" style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--surface-border)' }}>
+              <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                <Calendar size={14} />
                 {article.published_date ? format(new Date(article.published_date), 'dd MMM yyyy') : 'Unknown'}
               </div>
-              <a href={article.url} target="_blank" rel="noopener noreferrer"
-                className="nav-link"
-                style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-                Read <ExternalLink size={13} />
+              <a href={article.url} target="_blank" rel="noopener noreferrer" className="nav-link flex items-center gap-2" style={{ fontSize: '0.85rem' }}>
+                Read <ExternalLink size={14} />
               </a>
             </div>
           </div>
@@ -311,7 +256,7 @@ export default function RealtimeSearch() {
       {results.length === 0 && searchTime > 0 && (
         <div className="text-center" style={{ padding: '4rem 0', color: 'var(--text-muted)' }}>
           <h3>Tidak ada berita yang relevan ditemukan.</h3>
-          <p>Coba gunakan kata kunci lain.</p>
+          <p>Coba gunakan kata kunci lain atau ubah mode pencarian.</p>
         </div>
       )}
     </div>

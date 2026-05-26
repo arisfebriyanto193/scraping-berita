@@ -70,19 +70,29 @@ async function parseArticle(url) {
   }
 }
 
-export async function scrapeKompas(query, maxArticles = 5) {
+export async function scrapeKompas(query, maxArticles = 5, dateFrom, dateTo) {
   try {
     let urls = [];
     
     if (query) {
-      const searchUrl = `https://news.google.com/rss/search?q=site:kompas.com+${encodeURIComponent(query)}&hl=id&gl=ID&ceid=ID:id`;
-      console.log(`[Kompas] Scraping via GNews: ${searchUrl}`);
+      let searchUrl = `https://search.kompas.com/search?q=${encodeURIComponent(query)}`;
+      if (dateFrom && dateTo) {
+        const df = new Date(dateFrom);
+        const dt = new Date(dateTo);
+        if (!isNaN(df.getTime()) && !isNaN(dt.getTime())) {
+          const fStr = df.toISOString().split('T')[0];
+          const tStr = dt.toISOString().split('T')[0];
+          searchUrl += `&site_id=all&start_date=${fStr}&end_date=${tStr}`;
+        }
+      }
+      console.log(`[Kompas] Scraping search: ${searchUrl}`);
       
-      const res = await axios.get(searchUrl, { timeout: 20000 });
-      const $xml = cheerio.load(res.data, { xmlMode: true });
-      
-      $xml('item link').each((_, el) => {
-        urls.push($xml(el).text());
+      const $ = await fetchPage(searchUrl);
+      $('a.article__link, .gs-title a, h3 a, a.news-link').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href && href.startsWith('http') && href.includes('kompas.com') && href.includes('/read/')) {
+          urls.push(href);
+        }
       });
     } else {
       console.log(`[Kompas] Scraping nasional...`);

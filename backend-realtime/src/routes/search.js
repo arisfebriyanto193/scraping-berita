@@ -63,8 +63,9 @@ router.post('/search', async (req, res) => {
     top_k = 10,
   } = req.body;
 
-  if (!query || !query.trim()) {
-    return res.status(400).json({ error: 'Query tidak boleh kosong' });
+  // Allow empty query to just fetch latest news
+  if (query === undefined || query === null) {
+    return res.status(400).json({ error: 'Query parameter is required (can be empty string)' });
   }
 
   console.log(`\n[Search] Query: "${query}" | Sources: ${sources.join(', ')}`);
@@ -74,10 +75,10 @@ router.post('/search', async (req, res) => {
     // STEP 1: Scraping paralel dari semua sumber
     // ─────────────────────────────────────────────
     const scraperMap = {
-      detik: () => scrapeDetik(query, MAX_PER_SOURCE),
-      kompas: () => scrapeKompas(query, MAX_PER_SOURCE),
-      cnn: () => scrapeCNN(query, MAX_PER_SOURCE),
-      tempo: () => scrapeTempo(query, MAX_PER_SOURCE),
+      detik: () => scrapeDetik(query, MAX_PER_SOURCE, date_from, date_to),
+      kompas: () => scrapeKompas(query, MAX_PER_SOURCE, date_from, date_to),
+      cnn: () => scrapeCNN(query, MAX_PER_SOURCE, date_from, date_to),
+      tempo: () => scrapeTempo(query, MAX_PER_SOURCE, date_from, date_to),
     };
 
     const activeScrapers = sources
@@ -125,38 +126,42 @@ router.post('/search', async (req, res) => {
     }
 
     // ─────────────────────────────────────────────
-    // STEP 3: Hitung Sentence Embedding
+    // STEP 3 & 4: Hitung Sentence Embedding (Hanya jika ada query)
     // ─────────────────────────────────────────────
-    console.log(`[Search] Menghitung embedding untuk query dan ${allArticles.length} artikel...`);
+    let results = [];
+    if (query.trim()) {
+      console.log(`[Search] Menghitung embedding untuk query dan ${allArticles.length} artikel...`);
 
-    // Gabungkan: query sebagai elemen pertama, lalu semua artikel
-    // Teks artikel = judul (dikuatkan 3x) + konten (250 karakter pertama)
-    const textsToEmbed = [
-      query,
-      ...allArticles.map(a => `${a.title} ${a.title} ${a.title} ${a.content.substring(0, 250)}`),
-    ];
+      // Gabungkan: query sebagai elemen pertama, lalu semua artikel
+      // Teks artikel = judul (dikuatkan 3x) + konten (250 karakter pertama)
+      const textsToEmbed = [
+        query,
+        ...allArticles.map(a => `${a.title} ${a.title} ${a.title} ${a.content.substring(0, 250)}`),
+      ];
 
-    const embeddings = await embedTexts(textsToEmbed);
-    const queryEmbedding = embeddings[0];
-    const articleEmbeddings = embeddings.slice(1);
+      const embeddings = await embedTexts(textsToEmbed);
+      const queryEmbedding = embeddings[0];
+      const articleEmbeddings = embeddings.slice(1);
 
-    // ─────────────────────────────────────────────
-    // STEP 4: Hitung similarity score
-    // ─────────────────────────────────────────────
-    const scored = allArticles.map((article, i) => {
-      const similarity = cosineSimilarity(queryEmbedding, articleEmbeddings[i]);
-      const distance = Math.max(0, 1 - similarity);
-      return {
-        ...article,
-        similarity_score: similarity,
-        distance: parseFloat(distance.toFixed(4)),
-      };
-    });
+      const scored = allArticles.map((article, i) => {
+        const similarity = cosineSimilarity(queryEmbedding, articleEmbeddings[i]);
+        const distance = Math.max(0, 1 - similarity);
+        return {
+          ...article,
+          similarity_score: similarity,
+          distance: parseFloat(distance.toFixed(4)),
+        };
+      });
 
-    // Urutkan: distance terkecil (paling relevan) dulu
-    scored.sort((a, b) => a.distance - b.distance);
+      // Urutkan: distance terkecil (paling relevan) dulu
+      scored.sort((a, b) => a.distance - b.distance);
+      results = scored.slice(0, top_k);
+    } else {
+      console.log(`[Search] Tanpa query, mengembalikan artikel terbaru langsung...`);
+      // Jika tidak ada query, kembalikan artikel tanpa distance score
+      results = allArticles.slice(0, top_k);
+    }
 
-    const results = scored.slice(0, top_k);
     const queryTime = (Date.now() - startTime) / 1000;
 
     console.log(`[Search] ✅ Selesai dalam ${queryTime.toFixed(2)} detik. Mengembalikan ${results.length} hasil.`);

@@ -87,7 +87,7 @@ async function parseArticle(url) {
   }
 }
 
-export async function scrapeDetik(query, maxArticles = 5) {
+export async function scrapeDetik(query, maxArticles = 5, dateFrom, dateTo) {
   try {
     const searchUrl = query 
       ? `https://www.detik.com/search/searchall?query=${encodeURIComponent(query)}`

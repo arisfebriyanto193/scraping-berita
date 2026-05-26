@@ -80,19 +80,20 @@ async function parseArticle(url) {
   }
 }
 
-export async function scrapeTempo(query, maxArticles = 5) {
+export async function scrapeTempo(query, maxArticles = 5, dateFrom, dateTo) {
   try {
     let urls = [];
     
     if (query) {
-      const searchUrl = `https://news.google.com/rss/search?q=site:tempo.co+${encodeURIComponent(query)}&hl=id&gl=ID&ceid=ID:id`;
-      console.log(`[Tempo] Scraping via GNews: ${searchUrl}`);
+      const searchUrl = `https://www.tempo.co/search?q=${encodeURIComponent(query)}`;
+      console.log(`[Tempo] Scraping search: ${searchUrl}`);
       
-      const res = await axios.get(searchUrl, { timeout: 20000 });
-      const $xml = cheerio.load(res.data, { xmlMode: true });
-      
-      $xml('item link').each((_, el) => {
-        urls.push($xml(el).text());
+      const $ = await fetchPage(searchUrl);
+      $('.card-title a, article a, h2 a[href], h3 a[href], a').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href && href.startsWith('http') && href.includes('tempo.co') && href.includes('/read/')) {
+          urls.push(href);
+        }
       });
     } else {
       console.log(`[Tempo] Scraping nasional...`);

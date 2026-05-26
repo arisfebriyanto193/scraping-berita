@@ -167,11 +167,13 @@ h1, h2, h3, h4, h5, h6 {
 @media (min-width: 768px) {
   .md\:grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
   .md\:grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-responsive { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
 @media (min-width: 1024px) {
   .lg\:grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
   .lg\:grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-responsive { grid-template-columns: repeat(3, 1fr) !important; }
 }
 
 /* Animations */

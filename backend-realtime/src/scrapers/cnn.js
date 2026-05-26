@@ -78,20 +78,34 @@ async function parseArticle(url) {
   }
 }
 
-export async function scrapeCNN(query, maxArticles = 5) {
+export async function scrapeCNN(query, maxArticles = 5, dateFrom, dateTo) {
   try {
     let urls = [];
     
     if (query) {
-      const searchUrl = `https://news.google.com/rss/search?q=site:cnnindonesia.com+${encodeURIComponent(query)}&hl=id&gl=ID&ceid=ID:id`;
-      console.log(`[CNN] Scraping via GNews: ${searchUrl}`);
+      let searchUrl = `https://www.cnnindonesia.com/api/search?query=${encodeURIComponent(query)}`;
+      if (dateFrom && dateTo) {
+        const df = new Date(dateFrom);
+        const dt = new Date(dateTo);
+        if (!isNaN(df.getTime()) && !isNaN(dt.getTime())) {
+          const fStr = `${String(df.getDate()).padStart(2, '0')}/${String(df.getMonth()+1).padStart(2, '0')}/${df.getFullYear()}`;
+          const tStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth()+1).padStart(2, '0')}/${dt.getFullYear()}`;
+          searchUrl += `&fromdate=${encodeURIComponent(fStr)}&todate=${encodeURIComponent(tStr)}`;
+        }
+      }
+      console.log(`[CNN] Scraping API search: ${searchUrl}`);
       
-      const res = await axios.get(searchUrl, { timeout: 20000 });
-      const $xml = cheerio.load(res.data, { xmlMode: true });
-      
-      $xml('item link').each((_, el) => {
-        urls.push($xml(el).text());
+      await new Promise(r => setTimeout(r, DELAY_MS + Math.random() * 300));
+      const res = await axios.get(searchUrl, {
+        headers: { 'User-Agent': randomUA() },
+        timeout: 20000,
       });
+      
+      if (res.data && res.data.data && Array.isArray(res.data.data)) {
+        res.data.data.forEach(item => {
+          if (item.url) urls.push(item.url);
+        });
+      }
     } else {
       console.log(`[CNN] Scraping nasional...`);
       const $ = await fetchPage(`${BASE_URL}/nasional`);
