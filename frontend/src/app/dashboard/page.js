@@ -100,7 +100,7 @@ export default function Dashboard() {
             <h3 style={{ color: 'var(--text-main)' }}>Last Scraped</h3>
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 'bold', fontFamily: 'var(--font-heading)', marginBottom: '0.5rem' }}>
-            {status?.last_scraped_at ? format(new Date(status.last_scraped_at), 'dd MMM, HH:mm') : 'Never'}
+            {status?.last_scraped ? format(new Date(status.last_scraped), 'dd MMM, HH:mm') : 'Never'}
           </div>
           
           <button 

@@ -46,7 +46,7 @@ export default function Home() {
       if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
 
       if (searchMode === 'semantic') {
-        res = await searchSemantic({ query, filters: activeFilters, top_k: 20 });
+        res = await searchSemantic({ query, filters: activeFilters, top_k: 20, threshold: 0.3 });
       } else if (searchMode === 'hybrid') {
         res = await searchHybrid({ 
           query, 
