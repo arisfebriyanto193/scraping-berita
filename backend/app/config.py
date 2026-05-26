@@ -24,8 +24,10 @@ class Settings(BaseSettings):
     
     @property
     def DATABASE_URL(self) -> str:
+        from urllib.parse import quote_plus
+        password = quote_plus(self.MYSQL_PASSWORD) if self.MYSQL_PASSWORD else ""
         return (
-            f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}"
+            f"mysql+pymysql://{self.MYSQL_USER}:{password}"
             f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}"
             f"?charset=utf8mb4"
         )

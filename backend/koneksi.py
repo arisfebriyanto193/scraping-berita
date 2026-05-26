@@ -13,8 +13,11 @@ MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "news_semantic_db")
 
+from urllib.parse import quote_plus
+password = quote_plus(MYSQL_PASSWORD) if MYSQL_PASSWORD else ""
+
 # Buat connection string
-DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
+DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{password}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
 
 print("="*50)
 print("🔍 MENGUJI KONEKSI DATABASE MYSQL")
