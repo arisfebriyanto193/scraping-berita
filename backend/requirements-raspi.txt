@@ -1,0 +1,46 @@
+# ============================================================
+# requirements-raspi.txt
+# Versi RINGAN untuk Raspberry Pi 4 / ARM / Low-RAM devices
+# ============================================================
+# Pengganti utama: sentence-transformers+torch (~1.5GB)
+# diganti dengan onnxruntime + model ONNX (~150MB)
+# ============================================================
+
+# Web Framework (tetap sama, sangat ringan)
+fastapi>=0.104.1
+uvicorn>=0.24.0
+
+# Database (tetap sama)
+sqlalchemy>=2.0.23
+pymysql>=1.1.0
+
+# Config & Env
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Scraping (tetap sama, sangat ringan)
+beautifulsoup4>=4.12.2
+requests>=2.31.0
+
+# Scheduler (tetap sama)
+apscheduler>=3.10.4
+
+# Numpy (harus ada, tapi jauh lebih ringan tanpa torch)
+numpy>=1.24.0
+
+# ============================================================
+# PENGGANTI sentence-transformers + torch:
+# onnxruntime: ~15MB (vs torch ~1.5GB)
+# fastembed: wrapper ONNX yang simple untuk embedding
+# ============================================================
+onnxruntime>=1.16.0
+fastembed>=0.2.6
+
+# Vector Search (sama seperti sebelumnya)
+faiss-cpu>=1.9.0
+
+# Utilities
+python-multipart==0.0.6
+python-dateutil==2.8.2
+greenlet>=3.1.0
