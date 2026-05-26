@@ -5,7 +5,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
  */
 async function fetchApi(endpoint, options = {}) {
   const url = `${API_URL}${endpoint}`;
-  
+  console.log(url);
   const headers = {
     'Content-Type': 'application/json',
     ...options.headers,
@@ -27,17 +27,18 @@ async function fetchApi(endpoint, options = {}) {
 /**
  * Semantic Search API
  */
-export async function searchSemantic({ query, top_k = 20, threshold = 0.0, filters = {} }) {
+export async function searchSemantic({ query, top_k = 10, threshold = 0.0, filters = {} }) {
   return fetchApi('/search/semantic', {
     method: 'POST',
     body: JSON.stringify({
-      query,
+      query, // default 10
       top_k,
       threshold,
       filters
     })
   });
 }
+
 
 /**
  * Keyword Search API
@@ -56,9 +57,10 @@ export async function searchKeyword({ keywords, match_type = 'all', page = 1, li
 }
 
 /**
+ * 
  * Hybrid Search API
  */
-export async function searchHybrid({ query, keywords = [], semantic_weight = 0.7, top_k = 20, filters = {} }) {
+export async function searchHybrid({ query, keywords = [], semantic_weight = 0.7, top_k = 10, filters = {} }) {
   return fetchApi('/search/hybrid', {
     method: 'POST',
     body: JSON.stringify({
@@ -81,7 +83,7 @@ export async function getNewsStats() {
 /**
  * Get Trending Topics
  */
-export async function getTrendingTopics(days = 7, limit = 10) {
+export async function getTrendingTopics(days = 7, limit = 100) {
   return fetchApi(`/analytics/trending?days=${days}&limit=${limit}`);
 }
 
@@ -95,7 +97,7 @@ export async function getScrapingStatus() {
 /**
  * Trigger Manual Scrape
  */
-export async function triggerManualScrape(sources = ['all'], max_articles = 20) {
+export async function triggerManualScrape(sources = ['all'], max_articles = 200) {
   return fetchApi('/scrape/manual', {
     method: 'POST',
     body: JSON.stringify({
