@@ -15,11 +15,7 @@ export default function RootLayout({ children }) {
             <Link href="/" style={{ textDecoration: 'none' }}>
               <h2 className="text-gradient" style={{ fontSize: 'clamp(1rem, 3vw, 1.3rem)' }}>SemanticSearch</h2>
             </Link>
-            <div className="nav-links">
-              <Link href="/" className="nav-link">Search</Link>
-              <Link href="/realtime" className="nav-link">🔴 Realtime</Link>
-              <Link href="/dashboard" className="nav-link">Dashboard</Link>
-            </div>
+
           </div>
         </nav>
 
