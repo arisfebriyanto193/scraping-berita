@@ -80,11 +80,36 @@ async function parseArticle(url) {
   }
 }
 
+const CATEGORY_URLS = {
+  ekonomi: 'https://www.tempo.co/ekonomi',
+  nasional: 'https://www.tempo.co/politik',
+  olahraga: 'https://www.tempo.co/olahraga',
+  teknologi: 'https://www.tempo.co/digital',
+  hiburan: 'https://www.tempo.co/teroka',
+  'gaya hidup': 'https://www.tempo.co/gaya',
+  otomotif: 'https://www.tempo.co/otomotif',
+  kesehatan: 'https://www.tempo.co/kesehatan',
+  pendidikan: 'https://www.tempo.co/edukasi',
+  opini: 'https://www.tempo.co/kolom',
+};
+
 export async function scrapeTempo(query, maxArticles = 5, dateFrom, dateTo) {
   try {
     let urls = [];
+    const qLower = query ? query.toLowerCase() : '';
     
-    if (query) {
+    if (CATEGORY_URLS[qLower] && (!dateFrom && !dateTo)) {
+      console.log(`[Tempo] Scraping category: ${CATEGORY_URLS[qLower]}`);
+      const $ = await fetchPage(CATEGORY_URLS[qLower]);
+      const links = new Set();
+      $('.card-title a, article a, h2 a[href], h3 a[href], a').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href && href.startsWith('http') && href.includes('tempo.co') && href.includes('/read/')) {
+          links.add(href);
+        }
+      });
+      urls = [...links];
+    } else if (query) {
       const searchUrl = `https://www.tempo.co/search?q=${encodeURIComponent(query)}`;
       console.log(`[Tempo] Scraping search: ${searchUrl}`);
       

@@ -78,11 +78,36 @@ async function parseArticle(url) {
   }
 }
 
+const CATEGORY_URLS = {
+  ekonomi: 'https://www.cnnindonesia.com/ekonomi',
+  nasional: 'https://www.cnnindonesia.com/nasional',
+  olahraga: 'https://www.cnnindonesia.com/olahraga',
+  teknologi: 'https://www.cnnindonesia.com/teknologi',
+  hiburan: 'https://www.cnnindonesia.com/hiburan',
+  'gaya hidup': 'https://www.cnnindonesia.com/gaya-hidup',
+  otomotif: 'https://www.cnnindonesia.com/otomotif',
+  kesehatan: 'https://www.cnnindonesia.com/kesehatan',
+  pendidikan: 'https://www.cnnindonesia.com/pendidikan',
+  opini: 'https://www.cnnindonesia.com/opini',
+};
+
 export async function scrapeCNN(query, maxArticles = 5, dateFrom, dateTo) {
   try {
     let urls = [];
+    const qLower = query ? query.toLowerCase() : '';
     
-    if (query) {
+    if (CATEGORY_URLS[qLower] && (!dateFrom && !dateTo)) {
+      console.log(`[CNN] Scraping category: ${CATEGORY_URLS[qLower]}`);
+      const $ = await fetchPage(CATEGORY_URLS[qLower]);
+      const links = new Set();
+      $('article a[href], .list-content a[href], h2 a[href]').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href && href.startsWith('http') && href.includes('cnnindonesia.com') && href.match(/\-\d+/)) {
+          links.add(href);
+        }
+      });
+      urls = [...links];
+    } else if (query) {
       let searchUrl = `https://www.cnnindonesia.com/api/search?query=${encodeURIComponent(query)}`;
       if (dateFrom && dateTo) {
         const df = new Date(dateFrom);

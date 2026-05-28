@@ -70,11 +70,36 @@ async function parseArticle(url) {
   }
 }
 
+const CATEGORY_URLS = {
+  ekonomi: 'https://money.kompas.com',
+  nasional: 'https://nasional.kompas.com',
+  olahraga: 'https://bola.kompas.com',
+  teknologi: 'https://tekno.kompas.com',
+  hiburan: 'https://entertainment.kompas.com',
+  'gaya hidup': 'https://lifestyle.kompas.com',
+  otomotif: 'https://otomotif.kompas.com',
+  kesehatan: 'https://health.kompas.com',
+  pendidikan: 'https://edukasi.kompas.com',
+  opini: 'https://kolom.kompas.com',
+};
+
 export async function scrapeKompas(query, maxArticles = 5, dateFrom, dateTo) {
   try {
     let urls = [];
+    const qLower = query ? query.toLowerCase() : '';
     
-    if (query) {
+    if (CATEGORY_URLS[qLower] && (!dateFrom && !dateTo)) {
+      console.log(`[Kompas] Scraping category: ${CATEGORY_URLS[qLower]}`);
+      const $ = await fetchPage(CATEGORY_URLS[qLower]);
+      const links = new Set();
+      $('a.article__link, .gs-title a, h2 a[href], h3 a[href], .trending__title a, a.news-link').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href && href.startsWith('http') && href.includes('kompas.com') && href.includes('/read/')) {
+          links.add(href);
+        }
+      });
+      urls = [...links];
+    } else if (query) {
       let searchUrl = `https://search.kompas.com/search?q=${encodeURIComponent(query)}`;
       if (dateFrom && dateTo) {
         const df = new Date(dateFrom);

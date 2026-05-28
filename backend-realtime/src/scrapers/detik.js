@@ -87,11 +87,30 @@ async function parseArticle(url) {
   }
 }
 
+const CATEGORY_URLS = {
+  ekonomi: 'https://finance.detik.com',
+  nasional: 'https://news.detik.com',
+  olahraga: 'https://sport.detik.com',
+  teknologi: 'https://inet.detik.com',
+  hiburan: 'https://hot.detik.com',
+  'gaya hidup': 'https://wolipop.detik.com',
+  otomotif: 'https://oto.detik.com',
+  kesehatan: 'https://health.detik.com',
+  pendidikan: 'https://www.detik.com/edu',
+  opini: 'https://news.detik.com/kolom',
+};
+
 export async function scrapeDetik(query, maxArticles = 5, dateFrom, dateTo) {
   try {
-    const searchUrl = query 
-      ? `https://www.detik.com/search/searchall?query=${encodeURIComponent(query)}`
-      : `${BASE_URL}/terpopuler`;
+    const qLower = query ? query.toLowerCase() : '';
+    let searchUrl;
+    if (CATEGORY_URLS[qLower] && (!dateFrom && !dateTo)) {
+      searchUrl = CATEGORY_URLS[qLower];
+    } else {
+      searchUrl = query 
+        ? `https://www.detik.com/search/searchall?query=${encodeURIComponent(query)}`
+        : `${BASE_URL}/terpopuler`;
+    }
       
     console.log(`[Detik] Scraping: ${searchUrl}`);
     const $ = await fetchPage(searchUrl);
