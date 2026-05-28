@@ -39,7 +39,6 @@ kesehatan → health.detik.com
 pendidikan → detik.com/edu
 opini → news.detik.com/kolom
 
-
 Kompas
 ekonomi → money.kompas.com
 nasional → nasional.kompas.com

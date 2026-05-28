@@ -16,6 +16,7 @@ import { scrapeDetik } from '../scrapers/detik.js';
 import { scrapeKompas } from '../scrapers/kompas.js';
 import { scrapeCNN } from '../scrapers/cnn.js';
 import { scrapeTempo } from '../scrapers/tempo.js';
+import { scrapeTribun } from '../scrapers/tribun.js';
 import { embedTexts, cosineSimilarity } from '../services/embedder.js';
 
 const router = express.Router();
@@ -57,7 +58,7 @@ router.post('/search', async (req, res) => {
 
   const {
     query,
-    sources = ['detik', 'kompas', 'cnn', 'tempo'],
+    sources = ['detik', 'kompas', 'cnn', 'tempo', 'tribun'],
     date_from,
     date_to,
     top_k = 10,
@@ -79,6 +80,7 @@ router.post('/search', async (req, res) => {
       kompas: () => scrapeKompas(query, MAX_PER_SOURCE, date_from, date_to),
       cnn: () => scrapeCNN(query, MAX_PER_SOURCE, date_from, date_to),
       tempo: () => scrapeTempo(query, MAX_PER_SOURCE, date_from, date_to),
+      tribun: () => scrapeTribun(query, MAX_PER_SOURCE, date_from, date_to),
     };
 
     const activeScrapers = sources
