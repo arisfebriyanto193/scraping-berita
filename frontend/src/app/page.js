@@ -28,7 +28,7 @@ export default function RealtimeSearch() {
   const TOPICS = ['Ekonomi', 'Nasional', 'Olahraga', 'Teknologi', 'Hiburan', 'Gaya Hidup', 'Otomotif', 'Kesehatan', 'Pendidikan', 'Opini', 'Politik'];
 
   // Realtime backend only supports these platforms currently
-  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'tribun'];
+  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'tribun', 'antara', 'liputan6'];
   const DATE_PRESETS = [
     { value: '', label: 'All Time' },
     { value: 'today', label: 'Today' },
@@ -94,8 +94,14 @@ export default function RealtimeSearch() {
     setTotalResults(0);
 
     try {
+      // Masukkan filter tanggal yang sedang aktif, tapi override sourcenya
+      const activeFilters = { sources: [source] };
+      if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
+      if (filters.date_from) activeFilters.date_from = filters.date_from;
+      if (filters.date_to) activeFilters.date_to = filters.date_to;
+
       // query: '' → backend akan skip embedding & langsung ambil berita nasional/terpopuler
-      const res = await searchRealtime({ query: '', filters: { sources: [source] }, top_k: 10 });
+      const res = await searchRealtime({ query: '', filters: activeFilters, top_k: 10 });
 
       setResults(res.results || []);
       setSearchTime(res.query_time || 0);
