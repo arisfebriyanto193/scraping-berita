@@ -1,21 +1,80 @@
 "use client";
 
 import { useState } from 'react';
-import { Search, Sparkles, Filter, Calendar, ExternalLink } from 'lucide-react';
+import { Search, Sparkles, Filter, Calendar, ExternalLink, X, Newspaper, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { searchRealtime } from '@/services/api';
 
+// ── Modal Backdrop ─────────────────────────────────────────────────────────
+function Modal({ open, onClose, title, children }) {
+  if (!open) return null;
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        padding: '0',
+        animation: 'fadeIn 0.2s ease',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--surface-border)',
+          borderRadius: '20px 20px 0 0',
+          width: '100%',
+          maxWidth: '600px',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          padding: '1.5rem',
+          animation: 'slideUp 0.3s cubic-bezier(0.16,1,0.3,1)',
+        }}
+      >
+        {/* Drag handle */}
+        <div style={{ width: '40px', height: '4px', borderRadius: '99px', background: 'rgba(255,255,255,0.2)', margin: '0 auto 1.25rem' }} />
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{title}</h3>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+              width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: 'white',
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+        {children}
+      </div>
+
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes slideUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────
 export default function RealtimeSearch() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingSource, setLoadingSource] = useState(null); // track which quick-source is loading
-  const [activeSource, setActiveSource] = useState(null);   // highlight active quick-source
+  const [loadingSource, setLoadingSource] = useState(null);
+  const [activeSource, setActiveSource] = useState(null);
   const [searchTime, setSearchTime] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
 
-  // Search Settings
-  const [showFilters, setShowFilters] = useState(false);
+  // Modal states
+  const [showSourceModal, setShowSourceModal] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -27,14 +86,13 @@ export default function RealtimeSearch() {
 
   const TOPICS = ['Ekonomi', 'Nasional', 'Olahraga', 'Teknologi', 'Hiburan', 'Gaya Hidup', 'Otomotif', 'Kesehatan', 'Pendidikan', 'Opini', 'Politik'];
 
-  // Realtime backend only supports these platforms currently
   const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia'];
   const DATE_PRESETS = [
     { value: '', label: 'All Time' },
-    { value: 'today', label: 'Today' },
-    { value: 'last_7_days', label: 'Last 7 Days' },
-    { value: 'this_month', label: 'This Month' },
-    { value: 'this_year', label: 'This Year' }
+    { value: 'today', label: 'Hari Ini' },
+    { value: 'last_7_days', label: '7 Hari Terakhir' },
+    { value: 'this_month', label: 'Bulan Ini' },
+    { value: 'this_year', label: 'Tahun Ini' },
   ];
 
   const handleSearch = async (e, customQuery = null) => {
@@ -46,7 +104,6 @@ export default function RealtimeSearch() {
     setResults([]);
 
     try {
-      // Clean up filters to remove empty arrays/strings
       const activeFilters = {};
       if (filters.sources.length > 0) activeFilters.sources = filters.sources;
       if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
@@ -54,8 +111,6 @@ export default function RealtimeSearch() {
       if (filters.date_to) activeFilters.date_to = filters.date_to;
 
       const res = await searchRealtime({ query: q, filters: activeFilters, top_k: 10 });
-
-      // Sort by distance (smallest = most relevant)
       const sorted = (res.results || []).sort((a, b) => (a.distance ?? 1) - (b.distance ?? 1));
       setResults(sorted);
       setSearchTime(res.query_time || 0);
@@ -82,11 +137,8 @@ export default function RealtimeSearch() {
     });
   };
 
-  /**
-   * Langsung ambil 10 berita terbaru dari platform tertentu.
-   * Tidak menyentuh state filter & tidak butuh query.
-   */
   const handleQuickSource = async (source) => {
+    setShowSourceModal(false);
     setLoadingSource(source);
     setActiveSource(source);
     setResults([]);
@@ -94,15 +146,12 @@ export default function RealtimeSearch() {
     setTotalResults(0);
 
     try {
-      // Masukkan filter tanggal yang sedang aktif, tapi override sourcenya
       const activeFilters = { sources: [source] };
       if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
       if (filters.date_from) activeFilters.date_from = filters.date_from;
       if (filters.date_to) activeFilters.date_to = filters.date_to;
 
-      // query: '' → backend akan skip embedding & langsung ambil berita nasional/terpopuler
       const res = await searchRealtime({ query: '', filters: activeFilters, top_k: 10 });
-
       setResults(res.results || []);
       setSearchTime(res.query_time || 0);
       setTotalResults((res.results || []).length);
@@ -114,9 +163,168 @@ export default function RealtimeSearch() {
     }
   };
 
+  const hasActiveFilters = filters.sources.length > 0 || filters.date_preset || filters.date_from || filters.date_to;
+
   return (
     <div className="container animate-fade-in">
-      {/* Hero Search Section */}
+
+      {/* ── Modals ───────────────────────────────────────────────────────── */}
+
+      {/* Modal: Berita Terbaru (Platform Picker) */}
+      <Modal open={showSourceModal} onClose={() => setShowSourceModal(false)} title="📰 Pilih Platform Berita">
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>
+          Klik platform untuk langsung melihat 10 berita terbaru.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {PLATFORMS.map(p => {
+            const isActive = activeSource === p && !query;
+            const isLoading = loadingSource === p;
+            return (
+              <button
+                key={`modal-${p}`}
+                type="button"
+                disabled={loadingSource !== null}
+                onClick={() => handleQuickSource(p)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: '10px', padding: '12px 14px', borderRadius: '12px', cursor: 'pointer',
+                  border: `1px solid ${isActive ? 'var(--primary)' : 'var(--surface-border)'}`,
+                  background: isActive ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
+                  color: 'white', fontSize: '0.9rem', fontWeight: 500, textTransform: 'capitalize',
+                  transition: 'all 0.2s', opacity: loadingSource && !isLoading ? 0.5 : 1,
+                }}
+              >
+                <span>{p}</span>
+                {isLoading
+                  ? <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />
+                  : <ChevronRight size={14} style={{ opacity: 0.5 }} />
+                }
+              </button>
+            );
+          })}
+        </div>
+      </Modal>
+
+      {/* Modal: Filter */}
+      <Modal open={showFilterModal} onClose={() => setShowFilterModal(false)} title="⚙️ Filter Pencarian">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+          {/* Sumber Berita */}
+          <div>
+            <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Sumber Berita
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              {PLATFORMS.map(p => (
+                <button
+                  key={`filter-src-${p}`}
+                  type="button"
+                  onClick={() => toggleSource(p)}
+                  style={{
+                    padding: '10px 12px', borderRadius: '10px', cursor: 'pointer',
+                    border: `1px solid ${filters.sources.includes(p) ? 'var(--primary)' : 'var(--surface-border)'}`,
+                    background: filters.sources.includes(p) ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)',
+                    color: 'white', fontSize: '0.875rem', fontWeight: 500, textTransform: 'capitalize',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            {filters.sources.length > 0 && (
+              <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--primary)' }}>
+                ✓ {filters.sources.length} sumber dipilih
+              </p>
+            )}
+          </div>
+
+          {/* Rentang Tanggal */}
+          <div>
+            <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Rentang Tanggal
+            </h4>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Dari</label>
+                <input
+                  type="date"
+                  className="input-glass w-full"
+                  style={{ padding: '0.5rem', fontSize: '0.9rem' }}
+                  value={filters.date_from}
+                  onChange={(e) => setFilters({ ...filters, date_from: e.target.value, date_preset: '' })}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Sampai</label>
+                <input
+                  type="date"
+                  className="input-glass w-full"
+                  style={{ padding: '0.5rem', fontSize: '0.9rem' }}
+                  value={filters.date_to}
+                  onChange={(e) => setFilters({ ...filters, date_to: e.target.value, date_preset: '' })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Preset Waktu */}
+          <div>
+            <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Preset Waktu
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              {DATE_PRESETS.map(d => {
+                const isSelected = filters.date_preset === d.value && !filters.date_from && !filters.date_to;
+                return (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() => setFilters({ ...filters, date_preset: d.value, date_from: '', date_to: '' })}
+                    style={{
+                      padding: '10px 12px', borderRadius: '10px', cursor: 'pointer',
+                      border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--surface-border)'}`,
+                      background: isSelected ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)',
+                      color: 'white', fontSize: '0.875rem', fontWeight: isSelected ? 600 : 400,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Footer Buttons */}
+          <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={() => setFilters({ sources: [], date_preset: '', date_from: '', date_to: '' })}
+              style={{
+                flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer',
+                border: '1px solid var(--surface-border)', background: 'rgba(255,255,255,0.04)',
+                color: 'var(--text-muted)', fontSize: '0.9rem',
+              }}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFilterModal(false)}
+              style={{
+                flex: 2, padding: '12px', borderRadius: '10px', cursor: 'pointer',
+                border: 'none', background: 'var(--primary)',
+                color: 'white', fontSize: '0.9rem', fontWeight: 600,
+              }}
+            >
+              Terapkan Filter
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Hero Search ───────────────────────────────────────────────────── */}
       <div style={{ textAlign: 'center', margin: '4rem 0 3rem' }}>
         <h1 className="text-gradient" style={{ fontSize: '3rem', marginBottom: '1rem' }}>
           Realtime Search
@@ -126,13 +334,14 @@ export default function RealtimeSearch() {
         </p>
 
         <form onSubmit={handleSearch} style={{ maxWidth: '800px', margin: '0 auto' }}>
+          {/* Search Bar */}
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'stretch' }}>
             <div style={{ position: 'relative', flex: 1 }}>
               <Search style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
               <input
                 type="text"
                 className="input-glass w-full"
-                style={{ paddingLeft: '2.75rem', paddingRight: '1rem', height: '44px', fontSize: '1rem' }}
+                style={{ paddingLeft: '2.75rem', paddingRight: '1rem', height: '48px', fontSize: '1rem' }}
                 placeholder="Cari berita terkini berdasarkan makna..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -142,9 +351,9 @@ export default function RealtimeSearch() {
               type="submit"
               className="btn-primary"
               disabled={loading}
-              style={{ height: '44px', padding: '0 1.25rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}
+              style={{ height: '48px', padding: '0 1.25rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0 }}
             >
-              {loading ? <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div> : <><Sparkles size={16} /> Search</>}
+              {loading ? <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div> : <><Sparkles size={16} /> Cari</>}
             </button>
           </div>
 
@@ -163,122 +372,55 @@ export default function RealtimeSearch() {
             ))}
           </div>
 
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mt-6 w-full">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full">
-              <span className="shrink-0" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Berita Terbaru:</span>
-              <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full">
-                {PLATFORMS.map(p => {
-                  const isActive  = activeSource === p && !query;
-                  const isLoading = loadingSource === p;
-                  return (
-                    <button
-                      key={`quick-${p}`}
-                      type="button"
-                      disabled={loadingSource !== null}
-                      className="btn-glass flex items-center justify-center gap-2"
-                      style={{
-                        fontSize: '0.85rem',
-                        padding: '6px 12px',
-                        textTransform: 'capitalize',
-                        background:   isActive  ? 'var(--primary)' : '',
-                        borderColor:  isActive  ? 'var(--primary)' : '',
-                        opacity:      loadingSource && !isLoading ? 0.5 : 1,
-                        width: '100%',
-                      }}
-                      onClick={() => handleQuickSource(p)}
-                    >
-                      {isLoading && <div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }} />}
-                      {p}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+          {/* Action Buttons: Berita Terbaru + Filter */}
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+            {/* Berita Terbaru Button */}
             <button
               type="button"
-              className="btn-glass flex items-center justify-center gap-2 w-full lg:w-auto shrink-0"
-              onClick={() => setShowFilters(!showFilters)}
+              onClick={() => setShowSourceModal(true)}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                padding: '12px', borderRadius: '12px', cursor: 'pointer',
+                border: `1px solid ${activeSource ? 'var(--primary)' : 'var(--surface-border)'}`,
+                background: activeSource ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)',
+                color: 'white', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s',
+              }}
             >
-              <Filter size={16} /> Filters {filters.sources.length > 0 && `(${filters.sources.length})`}
+              {loadingSource
+                ? <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
+                : <Newspaper size={16} />
+              }
+              <span>
+                {loadingSource
+                  ? `Memuat ${loadingSource}...`
+                  : activeSource
+                    ? `Berita: ${activeSource}`
+                    : 'Berita Terbaru'}
+              </span>
+            </button>
+
+            {/* Filter Button */}
+            <button
+              type="button"
+              onClick={() => setShowFilterModal(true)}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                padding: '12px', borderRadius: '12px', cursor: 'pointer',
+                border: `1px solid ${hasActiveFilters ? 'var(--primary)' : 'var(--surface-border)'}`,
+                background: hasActiveFilters ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)',
+                color: 'white', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s',
+              }}
+            >
+              <Filter size={16} />
+              <span>
+                Filter{hasActiveFilters ? ` (${(filters.sources.length > 0 ? filters.sources.length : 0) + (filters.date_preset || filters.date_from ? 1 : 0)} aktif)` : ''}
+              </span>
             </button>
           </div>
-
-          {/* Expandable Filters */}
-          {showFilters && (
-            <div className="glass-panel animate-fade-in mt-4" style={{ padding: '1.5rem', textAlign: 'left' }}>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>Berita Sumber</h4>
-                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
-                    {PLATFORMS.map(p => (
-                      <button
-                        key={p}
-                        type="button"
-                        className="btn-glass flex items-center justify-center"
-                        style={{ background: filters.sources.includes(p) ? 'var(--primary)' : '', fontSize: '0.9rem', width: '100%' }}
-                        onClick={() => toggleSource(p)}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>Waktu Terbit</h4>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="flex-1">
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Dari Tanggal</label>
-                        <input
-                          type="date"
-                          className="input-glass w-full"
-                          style={{ padding: '0.5rem', fontSize: '0.9rem' }}
-                          value={filters.date_from}
-                          onChange={(e) => setFilters({ ...filters, date_from: e.target.value, date_preset: '' })}
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Sampai</label>
-                        <input
-                          type="date"
-                          className="input-glass w-full"
-                          style={{ padding: '0.5rem', fontSize: '0.9rem' }}
-                          value={filters.date_to}
-                          onChange={(e) => setFilters({ ...filters, date_to: e.target.value, date_preset: '' })}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Atau gunakan preset:</div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {DATE_PRESETS.map(d => (
-                        <label key={d.label} className="btn-glass" style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem',
-                          background: (filters.date_preset === d.value && !filters.date_from && !filters.date_to) ? 'var(--primary)' : '',
-                          padding: '6px 10px', width: '100%'
-                        }}>
-                          <input
-                            type="radio"
-                            name="date_preset"
-                            className="hidden"
-                            checked={filters.date_preset === d.value && !filters.date_from && !filters.date_to}
-                            onChange={() => setFilters({ ...filters, date_preset: d.value, date_from: '', date_to: '' })}
-                          />
-                          {d.label}
-                        </label>
-                      ))}
-                    </div>
-                    <button type="button" className="btn-glass mt-2 w-full sm:w-auto" style={{ alignSelf: 'flex-start' }} onClick={() => setFilters({ sources: [], date_preset: '', date_from: '', date_to: '' })}>Reset Filter</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </form>
       </div>
 
-      {/* Results Section */}
+      {/* ── Results ───────────────────────────────────────────────────────── */}
       {searchTime > 0 && (
         <div style={{ marginBottom: '1.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
           Ditemukan {totalResults} hasil dalam {searchTime.toFixed(3)} detik
@@ -297,12 +439,9 @@ export default function RealtimeSearch() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{
                 background: 'rgba(255,255,255,0.1)',
-                padding: '3px 8px',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                fontWeight: 600,
+                padding: '3px 8px', borderRadius: '4px',
+                fontSize: '0.75rem', textTransform: 'uppercase',
+                letterSpacing: '1px', fontWeight: 600,
               }}>
                 {article.source}
               </span>
@@ -336,7 +475,7 @@ export default function RealtimeSearch() {
               <a href={article.url} target="_blank" rel="noopener noreferrer"
                 className="nav-link"
                 style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-                Read <ExternalLink size={13} />
+                Baca <ExternalLink size={13} />
               </a>
             </div>
           </div>
