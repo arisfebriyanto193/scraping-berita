@@ -24,7 +24,7 @@ export default function Home() {
     date_to: '',
   });
 
-  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'liputan6', 'tribun', 'antara', 'sindonews', 'republika', 'jpnn'];
+  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'liputan6', 'tribun', 'antara', 'sindonews', 'republika', 'jpnn', 'cnbcindonesia'];
   const DATE_PRESETS = [
     { value: '', label: 'All Time' },
     { value: 'today', label: 'Today' },
@@ -115,16 +115,16 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex gap-2">
-              <button type="button" className={`btn-glass ${searchMode === 'semantic' ? 'active' : ''}`} style={{ background: searchMode === 'semantic' ? 'rgba(99, 102, 241, 0.2)' : '' }} onClick={() => setSearchMode('semantic')}>Semantic</button>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-4 w-full">
+            <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2 w-full">
+              <button type="button" className={`btn-glass flex items-center justify-center w-full sm:w-auto ${searchMode === 'semantic' ? 'active' : ''}`} style={{ background: searchMode === 'semantic' ? 'rgba(99, 102, 241, 0.2)' : '' }} onClick={() => setSearchMode('semantic')}>Semantic</button>
               
-              <button type="button" className={`btn-glass ${searchMode === 'hybrid' ? 'active' : ''}`} style={{ background: searchMode === 'hybrid' ? 'rgba(99, 102, 241, 0.2)' : '' }} onClick={() => setSearchMode('hybrid')}>Hybrid</button>
+              <button type="button" className={`btn-glass flex items-center justify-center w-full sm:w-auto ${searchMode === 'hybrid' ? 'active' : ''}`} style={{ background: searchMode === 'hybrid' ? 'rgba(99, 102, 241, 0.2)' : '' }} onClick={() => setSearchMode('hybrid')}>Hybrid</button>
 
-              <button type="button" className={`btn-glass ${searchMode === 'keyword' ? 'active' : ''}`} style={{ background: searchMode === 'keyword' ? 'rgba(99, 102, 241, 0.2)' : '' }} onClick={() => setSearchMode('keyword')}>Keyword</button>
+              <button type="button" className={`btn-glass flex items-center justify-center w-full sm:w-auto ${searchMode === 'keyword' ? 'active' : ''}`} style={{ background: searchMode === 'keyword' ? 'rgba(99, 102, 241, 0.2)' : '' }} onClick={() => setSearchMode('keyword')}>Keyword</button>
             </div>
 
-            <button type="button" className="btn-glass flex items-center gap-2" onClick={() => setShowFilters(!showFilters)}>
+            <button type="button" className="btn-glass flex items-center justify-center gap-2 w-full sm:w-auto shrink-0" onClick={() => setShowFilters(!showFilters)}>
               <Filter size={16} /> Filters {filters.sources.length > 0 && `(${filters.sources.length})`}
             </button>
           </div>
@@ -132,16 +132,16 @@ export default function Home() {
           {/* Expandable Filters */}
           {showFilters && (
             <div className="glass-panel animate-fade-in mt-4" style={{ padding: '1.5rem', textAlign: 'left' }}>
-              <div className="grid md:grid-cols-2">
+              <div className="grid md:grid-cols-2 gap-6">
                 <div>
                   <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>Berita Sumber</h4>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                     {PLATFORMS.map(p => (
                       <button
                         key={p}
                         type="button"
-                        className="btn-glass"
-                        style={{ background: filters.sources.includes(p) ? 'var(--primary)' : '', fontSize: '0.9rem' }}
+                        className="btn-glass flex items-center justify-center"
+                        style={{ background: filters.sources.includes(p) ? 'var(--primary)' : '', fontSize: '0.9rem', width: '100%' }}
                         onClick={() => toggleSource(p)}
                       >
                         {p}
@@ -151,47 +151,51 @@ export default function Home() {
                 </div>
                 <div>
                   <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>Waktu Terbit</h4>
-                  <div className="flex flex-col gap-3">
-                    <div className="flex gap-2">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <div className="flex-1">
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Dari Tanggal</label>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Dari Tanggal</label>
                         <input
                           type="date"
                           className="input-glass w-full"
-                          style={{ padding: '0.4rem 0.5rem', fontSize: '0.9rem' }}
+                          style={{ padding: '0.5rem', fontSize: '0.9rem' }}
                           value={filters.date_from}
                           onChange={(e) => setFilters({ ...filters, date_from: e.target.value, date_preset: '' })}
                         />
                       </div>
                       <div className="flex-1">
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Sampai</label>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Sampai</label>
                         <input
                           type="date"
                           className="input-glass w-full"
-                          style={{ padding: '0.4rem 0.5rem', fontSize: '0.9rem' }}
+                          style={{ padding: '0.5rem', fontSize: '0.9rem' }}
                           value={filters.date_to}
                           onChange={(e) => setFilters({ ...filters, date_to: e.target.value, date_preset: '' })}
                         />
                       </div>
                     </div>
 
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.2rem 0' }}>Atau gunakan preset:</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Atau gunakan preset:</div>
 
-                    <div className="flex flex-col gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {DATE_PRESETS.map(d => (
-                        <label key={d.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                        <label key={d.label} className="btn-glass" style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem',
+                          background: (filters.date_preset === d.value && !filters.date_from && !filters.date_to) ? 'var(--primary)' : '',
+                          padding: '6px 10px', width: '100%'
+                        }}>
                           <input
                             type="radio"
                             name="date_preset"
+                            className="hidden"
                             checked={filters.date_preset === d.value && !filters.date_from && !filters.date_to}
                             onChange={() => setFilters({ ...filters, date_preset: d.value, date_from: '', date_to: '' })}
-                            style={{ accentColor: 'var(--primary)' }}
                           />
                           {d.label}
                         </label>
                       ))}
                     </div>
-                 <button type="button" className="btn-glass mt-2" onClick={() => setFilters({ sources: [], date_preset: '', date_from: '', date_to: '' })}>Reset Filter</button>
+                    <button type="button" className="btn-glass mt-2 w-full sm:w-auto" style={{ alignSelf: 'flex-start' }} onClick={() => setFilters({ sources: [], date_preset: '', date_from: '', date_to: '' })}>Reset Filter</button>
                   </div>
                 </div>
               </div>
