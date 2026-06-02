@@ -26,7 +26,7 @@ export default function RealtimeSearch() {
   });
 
   // Realtime backend only supports these platforms currently
-  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'tribun', 'antara', 'liputan6', 'cnbcindonesia'];
+  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia', 'okezone'];
   const DATE_PRESETS = [
     { value: '', label: 'All Time' },
     { value: 'today', label: 'Today' },

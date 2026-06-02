@@ -21,6 +21,7 @@ import { scrapeAntara } from '../scrapers/antara.js';
 import { scrapeLiputan6 } from '../scrapers/liputan6.js';
 import { scrapeSindo } from '../scrapers/sindo.js';
 import { scrapeCNBC } from '../scrapers/cnbcindonesia.js';
+import { scrapeOkezone } from '../scrapers/okezone.js';
 import { embedTexts, cosineSimilarity } from '../services/embedder.js';
 
 const router = express.Router();
@@ -62,7 +63,7 @@ router.post('/search', async (req, res) => {
 
   const {
     query,
-    sources = ['detik', 'kompas', 'cnn', 'tempo', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia'],
+    sources = ['detik', 'kompas', 'cnn', 'tempo', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia', 'okezone'],
     date_from,
     date_to,
     top_k = 10,
@@ -89,6 +90,7 @@ router.post('/search', async (req, res) => {
       liputan6: () => scrapeLiputan6(query, MAX_PER_SOURCE, date_from, date_to),
       sindo: () => scrapeSindo(query, MAX_PER_SOURCE, date_from, date_to),
       cnbcindonesia: () => scrapeCNBC(query, MAX_PER_SOURCE, date_from, date_to),
+      okezone: () => scrapeOkezone(query, MAX_PER_SOURCE, date_from, date_to),
     };
 
     const activeScrapers = sources

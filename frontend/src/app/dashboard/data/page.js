@@ -24,7 +24,7 @@ export default function Home() {
     date_to: '',
   });
 
-  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'liputan6', 'tribun', 'antara', 'sindonews', 'republika', 'jpnn', 'cnbcindonesia'];
+  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'liputan6', 'tribun', 'antara', 'sindonews', 'republika', 'jpnn', 'cnbcindonesia', 'okezone'];
   const DATE_PRESETS = [
     { value: '', label: 'All Time' },
     { value: 'today', label: 'Today' },
