@@ -22,7 +22,7 @@ import { scrapeTribun } from '../scrapers/tribun.js';
 // import { scrapeSindo } from '../scrapers/sindo.js';
 // import { scrapeCNBC } from '../scrapers/cnbcindonesia.js';
 // import { scrapeOkezone } from '../scrapers/okezone.js';
-// import { embedTexts, cosineSimilarity } from '../services/embedder.js';
+import { embedTexts, cosineSimilarity } from '../services/embedder.js';
 
 const router = express.Router();
 
@@ -86,11 +86,11 @@ router.post('/search', async (req, res) => {
       cnn: () => scrapeCNN(query, MAX_PER_SOURCE, date_from, date_to),
       tempo: () => scrapeTempo(query, MAX_PER_SOURCE, date_from, date_to),
       tribun: () => scrapeTribun(query, MAX_PER_SOURCE, date_from, date_to),
-      antara: () => scrapeAntara(query, MAX_PER_SOURCE, date_from, date_to),
-      liputan6: () => scrapeLiputan6(query, MAX_PER_SOURCE, date_from, date_to),
-      sindo: () => scrapeSindo(query, MAX_PER_SOURCE, date_from, date_to),
-      cnbcindonesia: () => scrapeCNBC(query, MAX_PER_SOURCE, date_from, date_to),
-      okezone: () => scrapeOkezone(query, MAX_PER_SOURCE, date_from, date_to),
+    //   antara: () => scrapeAntara(query, MAX_PER_SOURCE, date_from, date_to),
+    //   liputan6: () => scrapeLiputan6(query, MAX_PER_SOURCE, date_from, date_to),
+    //   sindo: () => scrapeSindo(query, MAX_PER_SOURCE, date_from, date_to),
+    //   cnbcindonesia: () => scrapeCNBC(query, MAX_PER_SOURCE, date_from, date_to),
+    //   okezone: () => scrapeOkezone(query, MAX_PER_SOURCE, date_from, date_to),
     };
 
     const activeScrapers = sources
