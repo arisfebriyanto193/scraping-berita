@@ -17,12 +17,12 @@ import { scrapeKompas } from '../scrapers/kompas.js';
 import { scrapeCNN } from '../scrapers/cnn.js';
 import { scrapeTempo } from '../scrapers/tempo.js';
 import { scrapeTribun } from '../scrapers/tribun.js';
-import { scrapeAntara } from '../scrapers/antara.js';
-import { scrapeLiputan6 } from '../scrapers/liputan6.js';
-import { scrapeSindo } from '../scrapers/sindo.js';
-import { scrapeCNBC } from '../scrapers/cnbcindonesia.js';
-import { scrapeOkezone } from '../scrapers/okezone.js';
-import { embedTexts, cosineSimilarity } from '../services/embedder.js';
+// import { scrapeAntara } from '../scrapers/antara.js';
+// import { scrapeLiputan6 } from '../scrapers/liputan6.js';
+// import { scrapeSindo } from '../scrapers/sindo.js';
+// import { scrapeCNBC } from '../scrapers/cnbcindonesia.js';
+// import { scrapeOkezone } from '../scrapers/okezone.js';
+// import { embedTexts, cosineSimilarity } from '../services/embedder.js';
 
 const router = express.Router();
 
