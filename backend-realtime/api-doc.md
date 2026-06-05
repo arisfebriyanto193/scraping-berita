@@ -8,10 +8,6 @@ https://search.kompas.com/search?q=semarang
 https://search.kompas.com/search?q=semarang&site_id=all&start_date=2026-05-18&end_date=2026-05-25
 
 
-https://www.tempo.co/search?q=semarang
-
-
-
 
 by keyword
 cnn indonesia
@@ -50,15 +46,4 @@ otomotif → otomotif.kompas.com
 kesehatan → health.kompas.com
 pendidikan → edukasi.kompas.com
 opini → kolom.kompas.com
-
-Tempo
-ekonomi → tempo.co/ekonomi
-nasional → tempo.co/politik
-olahraga → tempo.co/olahraga
-teknologi → tempo.co/digital
-hiburan → tempo.co/teroka
-gaya-hidup → tempo.co/gaya
-otomotif → tempo.co/otomotif
-kesehatan → tempo.co/kesehatan
-pendidikan → tempo.co/edukasi
-opini → tempo.co/kolom
+

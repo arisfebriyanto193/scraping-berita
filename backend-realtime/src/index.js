@@ -19,8 +19,17 @@ const PORT = process.env.PORT || 3001;
 // ─────────────────────────────────────────────
 // Middleware
 // ─────────────────────────────────────────────
+const getCorsOrigin = () => {
+  const originStr = process.env.CORS_ORIGIN;
+  if (!originStr) return '*';
+  if (originStr.includes(',')) {
+    return originStr.split(',').map(o => o.trim());
+  }
+  return originStr;
+};
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: getCorsOrigin(),
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type'],
 }));

@@ -86,7 +86,7 @@ export default function RealtimeSearch() {
 
   const TOPICS = ['Ekonomi', 'Nasional', 'Olahraga', 'Teknologi', 'Hiburan', 'Gaya Hidup', 'Otomotif', 'Kesehatan', 'Pendidikan', 'Opini', 'Politik'];
 
-  const PLATFORMS = ['detik', 'kompas', 'cnn', 'tempo', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia', 'okezone'];
+  const PLATFORMS = ['detik', 'kompas', 'cnn', 'merdeka', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia', 'okezone'];
   const DATE_PRESETS = [
     { value: '', label: 'All Time' },
     { value: 'today', label: 'Hari Ini' },

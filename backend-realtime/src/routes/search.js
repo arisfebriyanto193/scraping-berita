@@ -15,7 +15,7 @@ import express from 'express';
 import { scrapeDetik } from '../scrapers/detik.js';
 import { scrapeKompas } from '../scrapers/kompas.js';
 import { scrapeCNN } from '../scrapers/cnn.js';
-import { scrapeTempo } from '../scrapers/tempo.js';
+import { scrapeMerdeka } from '../scrapers/merdeka.js';
 import { scrapeTribun } from '../scrapers/tribun.js';
 import { scrapeAntara } from '../scrapers/antara.js';
 import { scrapeLiputan6 } from '../scrapers/liputan6.js';
@@ -63,7 +63,7 @@ router.post('/search', async (req, res) => {
 
   const {
     query,
-    sources = ['detik', 'kompas', 'cnn', 'tempo', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia', 'okezone'],
+    sources = ['detik', 'kompas', 'cnn', 'merdeka', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia', 'okezone'],
     date_from,
     date_to,
     top_k = 10,
@@ -84,7 +84,7 @@ router.post('/search', async (req, res) => {
       detik: () => scrapeDetik(query, MAX_PER_SOURCE, date_from, date_to),
       kompas: () => scrapeKompas(query, MAX_PER_SOURCE, date_from, date_to),
       cnn: () => scrapeCNN(query, MAX_PER_SOURCE, date_from, date_to),
-      tempo: () => scrapeTempo(query, MAX_PER_SOURCE, date_from, date_to),
+      merdeka: () => scrapeMerdeka(query, MAX_PER_SOURCE, date_from, date_to),
       tribun: () => scrapeTribun(query, MAX_PER_SOURCE, date_from, date_to),
       antara: () => scrapeAntara(query, MAX_PER_SOURCE, date_from, date_to),
       liputan6: () => scrapeLiputan6(query, MAX_PER_SOURCE, date_from, date_to),
