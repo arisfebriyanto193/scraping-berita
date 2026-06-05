@@ -24,7 +24,7 @@ import * as cheerio from 'cheerio';
 
 // ── Konstanta ──────────────────────────────────────────────────────────────
 
-const BASE_URL = 'https://www.tempo.co';
+const BASE_URL = 'https://www.tempo.co/politik';
 const DELAY_MS = parseInt(process.env.SCRAPE_DELAY_MS || '600');
 const MAX_RETRY = 2;
 
