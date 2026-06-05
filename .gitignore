@@ -5,12 +5,12 @@
 # ============================================================
 # ENVIRONMENT FILES (JANGAN DI-COMMIT!)
 # ============================================================
-**/.env
+
 **/.env.local
 **/.env.production
 **/.env.development
 **/.env.test
-backend/.env
+
 frontend/.env.local
 
 backend-realtime/node_modules
@@ -23,7 +23,7 @@ backend-realtime/model-cache
 # Virtual Environment
 backend/venv/
 backend/.venv/
-backend/env/
+
 
 # Python cache
 backend/**/__pycache__/
