@@ -4,11 +4,17 @@
  * 
  * Alur:
  * 1. Terima query + filters dari frontend
- * 2. Scrape berita terkini dari 4 portal secara paralel
+ * 2. Scrape berita terkini dari semua portal — streaming progress per scraper
  * 3. Hitung sentence embedding untuk query dan semua artikel
  * 4. Hitung cosine similarity, urutkan ascending (distance terkecil = paling relevan)
  * 5. Terapkan filter tanggal jika ada
- * 6. Return hasil ke frontend
+ * 6. Return hasil ke frontend via NDJSON streaming
+ *
+ * Streaming Protocol (NDJSON — newline-delimited JSON):
+ *   { "type": "progress", "percent": 20, "completed": 2, "total": 10, "source": "detik", "articles": 5, "message": "..." }
+ *   { "type": "embedding", "percent": 85, "message": "Menghitung relevansi..." }
+ *   { "type": "result", "results": [...], "total": 10, "total_scraped": 47, "query_time": 3.2 }
+ *   { "type": "error", "message": "..." }
  */
 
 import express from 'express';
@@ -33,7 +39,7 @@ const MAX_PER_SOURCE = parseInt(process.env.MAX_ARTICLES_PER_SOURCE || '5');
  */
 function applyDateFilter(articles, date_from, date_to) {
   return articles.filter(article => {
-    if (!article.published_date) return true; // Jika tidak ada tanggal, tetap masukkan
+    if (!article.published_date) return true;
 
     const pubDate = new Date(article.published_date);
     if (isNaN(pubDate.getTime())) return true;
@@ -55,11 +61,35 @@ function applyDateFilter(articles, date_from, date_to) {
 }
 
 /**
+ * Kirim satu baris NDJSON ke client (jika koneksi masih terbuka)
+ */
+function sendEvent(res, data) {
+  if (!res.writableEnded) {
+    res.write(JSON.stringify(data) + '\n');
+  }
+}
+
+/**
  * POST /realtime/search
  * Body: { query, sources?, date_from?, date_to?, top_k? }
+ * Response: NDJSON stream (Content-Type: application/x-ndjson)
  */
 router.post('/search', async (req, res) => {
   const startTime = Date.now();
+
+  // ── Setup streaming headers ──
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
+  res.flushHeaders();
+
+  // ── Abort flag — set ke true saat client disconnect ──
+  let aborted = false;
+  req.on('close', () => {
+    aborted = true;
+    console.log('[Search] Client disconnected — scraping dibatalkan.');
+  });
 
   const {
     query,
@@ -69,57 +99,91 @@ router.post('/search', async (req, res) => {
     top_k = 10,
   } = req.body;
 
-  // Allow empty query to just fetch latest news
   if (query === undefined || query === null) {
-    return res.status(400).json({ error: 'Query parameter is required (can be empty string)' });
+    sendEvent(res, { type: 'error', message: 'Query parameter is required (can be empty string)' });
+    return res.end();
   }
 
   console.log(`\n[Search] Query: "${query}" | Sources: ${sources.join(', ')}`);
 
   try {
-    // ─────────────────────────────────────────────
-    // STEP 1: Scraping paralel dari semua sumber
-    // ─────────────────────────────────────────────
-    const scraperMap = {
-      detik: () => scrapeDetik(query, MAX_PER_SOURCE, date_from, date_to),
-      kompas: () => scrapeKompas(query, MAX_PER_SOURCE, date_from, date_to),
-      cnn: () => scrapeCNN(query, MAX_PER_SOURCE, date_from, date_to),
-      republika: () => scrapeRepublika(query, MAX_PER_SOURCE, date_from, date_to),
-      tribun: () => scrapeTribun(query, MAX_PER_SOURCE, date_from, date_to),
-      antara: () => scrapeAntara(query, MAX_PER_SOURCE, date_from, date_to),
-      liputan6: () => scrapeLiputan6(query, MAX_PER_SOURCE, date_from, date_to),
-      sindo: () => scrapeSindo(query, MAX_PER_SOURCE, date_from, date_to),
-      cnbcindonesia: () => scrapeCNBC(query, MAX_PER_SOURCE, date_from, date_to),
-      okezone: () => scrapeOkezone(query, MAX_PER_SOURCE, date_from, date_to),
+    // ─────────────────────────────────────────────────────────────────
+    // STEP 1: Definisikan scraper map
+    // ─────────────────────────────────────────────────────────────────
+    const allScraperDefs = {
+      detik:        () => scrapeDetik(query, MAX_PER_SOURCE, date_from, date_to),
+      kompas:       () => scrapeKompas(query, MAX_PER_SOURCE, date_from, date_to),
+      cnn:          () => scrapeCNN(query, MAX_PER_SOURCE, date_from, date_to),
+      republika:    () => scrapeRepublika(query, MAX_PER_SOURCE, date_from, date_to),
+      tribun:       () => scrapeTribun(query, MAX_PER_SOURCE, date_from, date_to),
+      antara:       () => scrapeAntara(query, MAX_PER_SOURCE, date_from, date_to),
+      liputan6:     () => scrapeLiputan6(query, MAX_PER_SOURCE, date_from, date_to),
+      sindo:        () => scrapeSindo(query, MAX_PER_SOURCE, date_from, date_to),
+      cnbcindonesia:() => scrapeCNBC(query, MAX_PER_SOURCE, date_from, date_to),
+      okezone:      () => scrapeOkezone(query, MAX_PER_SOURCE, date_from, date_to),
     };
 
-    const activeScrapers = sources
-      .filter(s => scraperMap[s])
-      .map(s => scraperMap[s]());
+    const activeSources = sources.filter(s => allScraperDefs[s]);
+    const totalSources  = activeSources.length;
 
-    console.log(`[Search] Menjalankan ${activeScrapers.length} scraper secara paralel...`);
-    const scrapedArrays = await Promise.allSettled(activeScrapers);
-
-    let allArticles = [];
-    for (const result of scrapedArrays) {
-      if (result.status === 'fulfilled') {
-        allArticles = allArticles.concat(result.value);
-      } else {
-        console.error('[Search] Scraper error:', result.reason?.message);
-      }
+    if (totalSources === 0) {
+      sendEvent(res, { type: 'error', message: 'Tidak ada scraper yang valid.' });
+      return res.end();
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    // STEP 2: Scraping paralel — progress streaming per scraper selesai
+    // Persentase 0–70% dialokasikan untuk scraping phase
+    // ─────────────────────────────────────────────────────────────────
+    let completed = 0;
+    let allArticles = [];
+
+    const scraperPromises = activeSources.map(source =>
+      allScraperDefs[source]()
+        .then(articles => {
+          if (aborted) return;
+          completed++;
+          allArticles = allArticles.concat(articles || []);
+          const percent = Math.round((completed / totalSources) * 70);
+          sendEvent(res, {
+            type:      'progress',
+            percent,
+            completed,
+            total:     totalSources,
+            source,
+            articles:  (articles || []).length,
+            message:   `✅ ${source}: ${(articles || []).length} artikel`,
+          });
+        })
+        .catch(err => {
+          if (aborted) return;
+          completed++;
+          const percent = Math.round((completed / totalSources) * 70);
+          sendEvent(res, {
+            type:      'progress',
+            percent,
+            completed,
+            total:     totalSources,
+            source,
+            articles:  0,
+            message:   `⚠️ ${source}: gagal`,
+          });
+          console.error(`[Search] Scraper ${source} error:`, err.message);
+        })
+    );
+
+    await Promise.all(scraperPromises);
+
+    if (aborted) return res.end();
 
     console.log(`[Search] Total artikel terkumpul: ${allArticles.length}`);
 
     if (allArticles.length === 0) {
-      return res.json({
-        results: [],
-        total: 0,
+      sendEvent(res, {
+        type: 'result', results: [], total: 0, total_scraped: 0,
         query_time: (Date.now() - startTime) / 1000,
         message: 'Tidak ada artikel berhasil di-scrape',
       });
-    }
-
     // ─────────────────────────────────────────────
     // STEP 2: Terapkan filter tanggal
     // ─────────────────────────────────────────────
