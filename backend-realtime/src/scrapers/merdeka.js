@@ -1,54 +1,27 @@
 /**
- * merdeka.js - Realtime scraper untuk Merdeka.com
+ * merdeka.js - Realtime scraper untuk Merdeka.com (v2)
  *
- * Menggantikan: tempo.js
- * Alasan dipilih: Portal berita general dengan traffic tinggi, struktur
- * HTML bersih, cakupan topik luas, bagian KapanLagi Youniverse (KLY).
+ * PERBAIKAN v2 — berdasarkan inspeksi HTML asli Juni 2026:
  *
- * ═══════════════════════════════════════════════════════════════════════════
- * KARAKTERISTIK UNIK MERDEKA.COM:
+ * ROOT CAUSE hanya 3 artikel:
+ * 1. Halaman listing /peristiwa menggunakan React SSR — konten artikel
+ *    utama di-render via JS (lazy load), Cheerio hanya dapat sidebar.
+ * 2. Selector yang dipakai (h2.article-title, h3.title, dll) tidak ada
+ *    di HTML statis yang diterima Cheerio.
+ * 3. Yang ADA di HTML statis hanya:
+ *    - Section "Berita Terbaru" → list <a> di sidebar (5 artikel)
+ *    - Section "Berita Terpopuler" → list <a> di sidebar
+ *    - HEADLINE HARI INI → 3 link di hero section
  *
- * 1. POLA URL ARTIKEL — menggunakan suffix "-mvk.html" yang khas:
- *    merdeka.com/<kategori>/<judul-slug>-<article-id>-mvk.html
- *    Contoh:
- *      merdeka.com/peristiwa/dxi-2026-menteri-ekonomi-kreatif-...-566412-mvk.html
- *      merdeka.com/politik/soekarno-run-2026-...-535786-mvk.html
- *      merdeka.com/uang/rupiah-makin-mendekati-rp-18000-...-mvk.html
- *    Suffix "-mvk.html" wajib ada → mudah divalidasi
- *    Article ID (angka) selalu ada sebelum "-mvk.html"
- *
- * 2. KATEGORI AKTIF — diverifikasi dari homepage & menu Merdeka Juni 2026:
- *    /peristiwa  → Berita nasional & terkini (kategori utama)
- *    /politik    → Politik & pemerintahan
- *    /uang       → Ekonomi & keuangan (bukan /ekonomi!)
- *    /teknologi  → Teknologi & digital
- *    /artis      → Hiburan & selebriti
- *    /sehat      → Kesehatan
- *    /bola       → Sepakbola
- *    /sport      → Olahraga umum
- *    /otomotif   → Otomotif
- *    /travel     → Wisata & perjalanan
- *    /gaya       → Gaya hidup & lifestyle
- *    /dunia      → Berita internasional
- *    /jakarta    → Berita DKI Jakarta
- *    /properti   → Properti & hunian
- *    CATATAN:
- *    - Ekonomi di Merdeka = /uang (BUKAN /ekonomi)
- *    - Nasional di Merdeka = /peristiwa (BUKAN /nasional)
- *    - Hiburan di Merdeka = /artis (BUKAN /hiburan)
- *
- * 3. TAG PAGE:
- *    merdeka.com/tag/<slug> — aktif ✅
- *
- * 4. SEARCH:
- *    merdeka.com/search/<query> — path-based ✅
- *
- * 5. INDEKS:
- *    merdeka.com/<kategori>/indeks.html — tersedia per kategori ✅
- *
- * 6. Merdeka.com adalah bagian KapanLagi Youniverse (KLY) —
- *    satu grup dengan KapanLagi.com, Fimela.com, Bola.com, Dream.co.id
- * ═══════════════════════════════════════════════════════════════════════════
+ * SOLUSI:
+ * 1. Ekstrak SEMUA <a href="*-mvk.html"> dari seluruh halaman — ini
+ *    menangkap semua artikel yang ada di HTML statis apapun posisinya.
+ * 2. Multi-page: scrape halaman /peristiwa, /uang, dll SECARA PARALEL
+ *    lalu gabungkan — jika satu halaman hanya dapat 5, ambil dari banyak.
+ * 3. Gunakan halaman artikel individu sebagai sumber URL berikutnya:
+ *    setiap artikel punya sidebar "Berita Terbaru" berisi 5 artikel baru.
+ *    Teknik ini disebut "artikel-hop" — crawl dari artikel ke artikel.
+ * 4. Gunakan API internal Merdeka (jika tersedia) atau indeks HTML.
  */
 
 import axios from 'axios';
@@ -57,7 +30,7 @@ import * as cheerio from 'cheerio';
 // ── Konstanta ──────────────────────────────────────────────────────────────
 
 const BASE_URL  = 'https://www.merdeka.com';
-const DELAY_MS  = parseInt(process.env.SCRAPE_DELAY_MS || '600');
+const DELAY_MS  = parseInt(process.env.SCRAPE_DELAY_MS || '500');
 const MAX_RETRY = 2;
 
 const USER_AGENTS = [
@@ -66,122 +39,85 @@ const USER_AGENTS = [
   'Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0',
 ];
 
-// ── Kategori aktif — diverifikasi Juni 2026 ───────────────────────────────
+// ── Kategori aktif — diverifikasi dari HTML asli Juni 2026 ────────────────
+// Sumber: menu navigasi di halaman artikel merdeka.com
 
 const CATEGORY_URLS = {
-  // Berita Nasional
-  peristiwa:      `${BASE_URL}/peristiwa`,
-  nasional:       `${BASE_URL}/peristiwa`,
-  berita:         `${BASE_URL}/peristiwa`,
-  terkini:        `${BASE_URL}/peristiwa`,
-
-  // Politik
-  politik:        `${BASE_URL}/politik`,
-  pemerintahan:   `${BASE_URL}/politik`,
-  hukum:          `${BASE_URL}/politik`,
-
-  // Ekonomi — di Merdeka namanya /uang bukan /ekonomi
-  uang:           `${BASE_URL}/uang`,
-  ekonomi:        `${BASE_URL}/uang`,
-  bisnis:         `${BASE_URL}/uang`,
-  keuangan:       `${BASE_URL}/uang`,
-  rupiah:         `${BASE_URL}/uang`,
-
-  // Teknologi
-  teknologi:      `${BASE_URL}/teknologi`,
-  tekno:          `${BASE_URL}/teknologi`,
-  digital:        `${BASE_URL}/teknologi`,
-  gadget:         `${BASE_URL}/teknologi`,
-
-  // Hiburan — di Merdeka namanya /artis
-  artis:          `${BASE_URL}/artis`,
-  hiburan:        `${BASE_URL}/artis`,
-  seleb:          `${BASE_URL}/artis`,
-  selebriti:      `${BASE_URL}/artis`,
-  film:           `${BASE_URL}/artis`,
-  musik:          `${BASE_URL}/artis`,
-
-  // Kesehatan
-  sehat:          `${BASE_URL}/sehat`,
-  kesehatan:      `${BASE_URL}/sehat`,
-  health:         `${BASE_URL}/sehat`,
-
-  // Olahraga
-  bola:           `${BASE_URL}/bola`,
-  sepakbola:      `${BASE_URL}/bola`,
-  sport:          `${BASE_URL}/sport`,
-  olahraga:       `${BASE_URL}/sport`,
-
-  // Lainnya
-  otomotif:       `${BASE_URL}/otomotif`,
-  travel:         `${BASE_URL}/travel`,
-  wisata:         `${BASE_URL}/travel`,
-  gaya:           `${BASE_URL}/gaya`,
-  'gaya hidup':   `${BASE_URL}/gaya`,
-  lifestyle:      `${BASE_URL}/gaya`,
-  dunia:          `${BASE_URL}/dunia`,
-  internasional:  `${BASE_URL}/dunia`,
-  jakarta:        `${BASE_URL}/jakarta`,
-  properti:       `${BASE_URL}/properti`,
+  peristiwa:    `${BASE_URL}/peristiwa`,
+  news:         `${BASE_URL}/peristiwa`,
+  nasional:     `${BASE_URL}/peristiwa`,
+  berita:       `${BASE_URL}/peristiwa`,
+  politik:      `${BASE_URL}/politik`,
+  hukum:        `${BASE_URL}/politik`,
+  uang:         `${BASE_URL}/uang`,
+  ekonomi:      `${BASE_URL}/uang`,
+  bisnis:       `${BASE_URL}/uang`,
+  keuangan:     `${BASE_URL}/uang`,
+  artis:        `${BASE_URL}/artis`,
+  hiburan:      `${BASE_URL}/artis`,
+  seleb:        `${BASE_URL}/artis`,
+  trending:     `${BASE_URL}/trending`,
+  viral:        `${BASE_URL}/trending`,
+  teknologi:    `${BASE_URL}/teknologi`,
+  tekno:        `${BASE_URL}/teknologi`,
+  digital:      `${BASE_URL}/teknologi`,
+  otomotif:     `${BASE_URL}/otomotif`,
+  dunia:        `${BASE_URL}/dunia`,
+  internasional:`${BASE_URL}/dunia`,
+  gaya:         `${BASE_URL}/gaya`,
+  'gaya hidup': `${BASE_URL}/gaya`,
+  lifestyle:    `${BASE_URL}/gaya`,
+  sehat:        `${BASE_URL}/sehat`,
+  kesehatan:    `${BASE_URL}/sehat`,
+  bolasport:    `${BASE_URL}/bolasport`,
+  bola:         `${BASE_URL}/bolasport`,
+  olahraga:     `${BASE_URL}/bolasport`,
+  sport:        `${BASE_URL}/bolasport`,
 };
 
-// Segmen kategori URL → label standar
+// Segmen → label
 const PATH_CATEGORY = {
   peristiwa:  'nasional',
   politik:    'nasional',
   uang:       'ekonomi',
-  teknologi:  'teknologi',
   artis:      'hiburan',
-  sehat:      'kesehatan',
-  bola:       'olahraga',
-  sport:      'olahraga',
+  trending:   'trending',
+  teknologi:  'teknologi',
   otomotif:   'otomotif',
-  travel:     'travel',
-  gaya:       'gaya hidup',
   dunia:      'internasional',
-  jakarta:    'regional',
-  properti:   'properti',
+  gaya:       'gaya hidup',
+  sehat:      'kesehatan',
+  bolasport:  'olahraga',
 };
 
-// Keyword → kategori relevan
+// Keyword → kategori fallback
 const KEYWORD_CATEGORY_MAP = {
-  dolar:        ['uang'],
-  rupiah:       ['uang'],
-  saham:        ['uang'],
-  ihsg:         ['uang'],
-  inflasi:      ['uang'],
-  pajak:        ['uang', 'politik'],
-  anggaran:     ['uang', 'politik'],
-  bumn:         ['uang', 'peristiwa'],
-  pemilu:       ['politik'],
-  presiden:     ['politik'],
-  prabowo:      ['politik'],
-  dpr:          ['politik'],
-  korupsi:      ['politik'],
-  kpk:          ['politik'],
-  polri:        ['peristiwa'],
-  covid:        ['sehat', 'peristiwa'],
-  vaksin:       ['sehat'],
-  kanker:       ['sehat'],
-  diet:         ['sehat', 'gaya'],
-  timnas:       ['bola'],
-  liga:         ['bola'],
-  persija:      ['bola'],
-  motogp:       ['sport'],
-  bulutangkis:  ['sport'],
-  iphone:       ['teknologi'],
-  android:      ['teknologi'],
-  laptop:       ['teknologi'],
-  ai:           ['teknologi'],
-  startup:      ['teknologi', 'uang'],
-  artis:        ['artis'],
-  drakor:       ['artis'],
-  fashion:      ['gaya'],
-  kuliner:      ['gaya', 'travel'],
-  gempa:        ['peristiwa'],
-  banjir:       ['peristiwa', 'jakarta'],
-  israel:       ['dunia'],
-  perang:       ['dunia', 'peristiwa'],
+  dolar:       ['uang'],
+  rupiah:      ['uang'],
+  saham:       ['uang'],
+  ihsg:        ['uang'],
+  inflasi:     ['uang'],
+  pajak:       ['uang', 'peristiwa'],
+  bumn:        ['uang', 'peristiwa'],
+  presiden:    ['politik'],
+  prabowo:     ['politik', 'peristiwa'],
+  korupsi:     ['politik'],
+  kpk:         ['politik'],
+  polri:       ['peristiwa'],
+  timnas:      ['bolasport'],
+  liga:        ['bolasport'],
+  iphone:      ['teknologi'],
+  ai:          ['teknologi'],
+  startup:     ['teknologi', 'uang'],
+  artis:       ['artis'],
+  drakor:      ['artis'],
+  film:        ['artis'],
+  fashion:     ['gaya'],
+  kuliner:     ['gaya'],
+  gempa:       ['peristiwa'],
+  banjir:      ['peristiwa'],
+  israel:      ['dunia'],
+  covid:       ['sehat', 'peristiwa'],
 };
 
 // ── Utilitas ───────────────────────────────────────────────────────────────
@@ -189,53 +125,43 @@ const KEYWORD_CATEGORY_MAP = {
 const randomUA = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 const sleep    = ms  => new Promise(r => setTimeout(r, ms));
 
-/**
- * Ambil kategori dari URL artikel Merdeka.
- * Pola: merdeka.com/<kategori>/<slug>-<id>-mvk.html
- * Kategori ada di segments[0].
- */
 function categoryFromUrl(url) {
   try {
     const segments = new URL(url).pathname.split('/').filter(Boolean);
     return PATH_CATEGORY[segments[0]] || segments[0] || 'umum';
-  } catch {
-    return 'umum';
-  }
+  } catch { return 'umum'; }
 }
 
 /**
  * Validasi URL artikel Merdeka.
- * Ciri khas wajib: diakhiri dengan "-mvk.html"
- * dan mengandung angka ID artikel.
+ * Ciri khas wajib: suffix -mvk.html + angka ID artikel sebelumnya.
+ * Exclude foto & video.
  */
 function isMerdekaArticleUrl(href) {
   if (!href || !href.startsWith('http')) return false;
   if (!href.includes('merdeka.com')) return false;
-
-  // Suffix khas Merdeka
   if (!href.includes('-mvk.html')) return false;
 
   const excludes = [
-    '/tag/', '/search', '/indeks', '/video/', '/foto/',
-    '/company/', '/redaksi', '/advertise', '#', 'javascript:',
-    '/foto-', '/infografis/',
+    '/tag/', '/search', '/indeks', '/company/', '/redaksi',
+    '#', 'javascript:', '/foto-', '/video-', '/foto/',
+    '/special-content/', '/trending-article/', '/workstation/',
+    '/infografis/',
   ];
   if (excludes.some(ex => href.includes(ex))) return false;
 
   try {
     const { pathname } = new URL(href);
     const segments = pathname.split('/').filter(Boolean);
-    // Minimal 2 segmen: /<kategori>/<slug>-mvk.html
-    return segments.length >= 2 && /\d{4,}-mvk\.html$/.test(pathname);
-  } catch {
-    return false;
-  }
+    // Minimal 2 segmen & ID numerik ada di slug
+    return segments.length >= 2 && /\d{5,}-mvk\.html$/.test(pathname);
+  } catch { return false; }
 }
 
 // ── HTTP fetch dengan retry ────────────────────────────────────────────────
 
 async function fetchPage(url, retries = MAX_RETRY) {
-  await sleep(DELAY_MS + Math.random() * 400);
+  await sleep(DELAY_MS + Math.random() * 300);
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const res = await axios.get(url, {
@@ -266,23 +192,19 @@ async function parseArticle(url) {
   try {
     const $ = await fetchPage(url);
 
-    // ── Judul ──
+    // Judul — dari HTML asli: h1 di halaman artikel
     const title =
-      $('h1.article-title').first().text().trim() ||
-      $('h1[itemprop="headline"]').first().text().trim() ||
-      $('h1.title').first().text().trim() ||
-      $('meta[property="og:title"]').attr('content')?.trim() ||
-      $('h1').first().text().trim();
+      $('h1').first().text().trim() ||
+      $('meta[property="og:title"]').attr('content')?.trim();
 
-    // ── Konten ──
-    // Merdeka: div.article-body atau div[itemprop="articleBody"]
+    // Konten — berdasarkan inspeksi HTML asli
+    // Merdeka menggunakan div dengan paragraf langsung di body artikel
     const contentSelectors = [
       'div.article-body',
       'div[itemprop="articleBody"]',
       'div.article-content',
       'div#article-body',
-      'div.content-article',
-      'div.detail-content',
+      'section.article',
       'article',
     ];
     let contentEl = null;
@@ -294,30 +216,30 @@ async function parseArticle(url) {
     if (contentEl) {
       contentEl.find([
         'script', 'style', 'figure', 'aside', 'iframe',
-        '.ads', '.advertisement', '.baca-juga', '.related-news',
-        'noscript', '.share-button', '.tag-list', '.iklan',
-        '.widget', '.embed', '.box-ads',
+        '.ads', '.advertisement', 'noscript', '.share-button',
+        '.tag-list', '.iklan', '.widget', '.ADVERTISEMENT',
       ].join(',')).remove();
       content = contentEl.text().replace(/\s+/g, ' ').trim();
     }
 
-    // Fallback: kumpulkan paragraf
-    if (!content || content.length < 80) {
+    // Fallback agresif: kumpulkan semua <p> yang cukup panjang
+    if (!content || content.length < 100) {
       const parts = [];
-      $('div.article-body p, div[itemprop="articleBody"] p, article p').each((_, el) => {
+      $('p').each((_, el) => {
+        // Skip p di dalam nav, footer, aside
+        const parent = $(el).parents('nav, footer, aside, header').length;
+        if (parent > 0) return;
         const t = $(el).text().trim();
-        if (t.length > 30) parts.push(t);
+        if (t.length > 40) parts.push(t);
       });
-      content = parts.join(' ').trim();
+      if (parts.length > 0) content = parts.join(' ').trim();
     }
 
-    // ── Tanggal ──
+    // Tanggal — dari meta article:published_time (terkonfirmasi ada di HTML)
     let published_date = null;
-
     const dateMeta =
       $('meta[property="article:published_time"]').attr('content') ||
       $('meta[itemprop="datePublished"]').attr('content') ||
-      $('[itemprop="datePublished"]').attr('content') ||
       $('time').first().attr('datetime');
 
     if (dateMeta) {
@@ -325,131 +247,112 @@ async function parseArticle(url) {
       if (!isNaN(d.getTime())) published_date = d.toISOString();
     }
 
-    // Fallback: teks tanggal — format "5 Juni 2026 09:48" atau "2026-06-05 09:48:00"
+    // Fallback teks — format "Rabu, 03 Jun 2026 15:09:59"
     if (!published_date) {
-      const dateText =
-        $('span.article-date').first().text().trim() ||
-        $('div.date').first().text().trim() ||
-        $('span.date').first().text().trim() ||
-        $('[class*="date"]').first().text().trim();
-
-      // Coba ISO format dulu
-      if (dateText) {
-        const d = new Date(dateText);
-        if (!isNaN(d.getTime())) {
-          published_date = d.toISOString();
-        } else {
-          // Coba parse format Indonesia
-          const MONTHS = {
-            Januari:1, Februari:2, Maret:3, April:4, Mei:5, Juni:6,
-            Juli:7, Agustus:8, September:9, Oktober:10, November:11, Desember:12,
-          };
-          const match = dateText.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
-          if (match && MONTHS[match[2]]) {
-            published_date = new Date(
-              parseInt(match[3]), MONTHS[match[2]] - 1, parseInt(match[1])
-            ).toISOString();
-          }
-        }
+      const dateText = $('[class*="date"], [class*="time"]').first().text().trim();
+      const MONTHS = {
+        Jan:1, Feb:2, Mar:3, Apr:4, Mei:5, Jun:6,
+        Jul:7, Agu:8, Sep:9, Okt:10, Nov:11, Des:12,
+        Januari:1, Februari:2, Maret:3, April:4, Juni:6,
+        Juli:7, Agustus:8, September:9, Oktober:10, November:11, Desember:12,
+      };
+      const match = dateText?.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
+      if (match && MONTHS[match[2]]) {
+        published_date = new Date(
+          parseInt(match[3]), MONTHS[match[2]] - 1, parseInt(match[1])
+        ).toISOString();
       }
     }
 
-    // ── Penulis ──
     const author =
       $('[itemprop="author"]').first().text().trim() ||
       $('meta[name="author"]').attr('content')?.trim() ||
-      $('span.reporter').first().text().trim() ||
-      $('div.author-name').first().text().trim() ||
       null;
 
-    // ── Gambar & deskripsi ──
     const image_url   = $('meta[property="og:image"]').attr('content') || null;
     const description = $('meta[property="og:description"]').attr('content')?.trim() || null;
 
-    // ── Validasi ──
-    if (!title || title.length < 10) {
-      console.warn(`[Merdeka] Skip (judul kosong): ${url}`);
-      return null;
-    }
+    if (!title || title.length < 10) return null;
     if (!content || content.length < 80) {
       if (description?.length > 50) {
-        return {
-          title, content: description, url, source: 'merdeka',
-          published_date, author, image_url,
-          category: categoryFromUrl(url),
-        };
+        return { title, content: description, url, source: 'merdeka',
+          published_date, author, image_url, category: categoryFromUrl(url) };
       }
-      console.warn(`[Merdeka] Skip (konten kosong): ${url}`);
       return null;
     }
 
-    return {
-      title,
-      content,
-      url,
-      source: 'merdeka',
-      published_date,
-      author: author || null,
-      image_url,
-      category: categoryFromUrl(url),
-    };
+    return { title, content, url, source: 'merdeka',
+      published_date, author, image_url, category: categoryFromUrl(url) };
+
   } catch (err) {
     console.error(`[Merdeka] Error parse ${url}:`, err.message);
     return null;
   }
 }
 
-// ── Kumpulkan URL dari halaman listing ────────────────────────────────────
+// ── Kumpulkan URL dari halaman apapun ─────────────────────────────────────
+// KUNCI PERBAIKAN: gunakan selector lebar `a[href*="-mvk.html"]`
+// karena halaman listing Merdeka pakai React — konten utama tidak ada
+// di HTML statis. Tapi sidebar "Berita Terbaru" SELALU ada.
 
-async function scrapeListingPage(pageUrl) {
+async function extractUrlsFromPage(pageUrl) {
   const $ = await fetchPage(pageUrl);
   const links = new Set();
 
-  const selectors = [
-    'h2.article-title a',
-    'h3.article-title a',
-    'h2.title a',
-    'h3.title a',
-    'article h2 a',
-    'article h3 a',
-    '.list-news h3 a',
-    '.news-item h3 a',
-    '.card-news h3 a',
-    'a[href*="-mvk.html"]',   // fallback: ciri khas Merdeka
-  ];
-
-  for (const sel of selectors) {
-    $(sel).each((_, el) => {
-      const href = $(el).attr('href');
-      if (isMerdekaArticleUrl(href)) links.add(href.split('?')[0]);
-    });
-  }
+  // Selector lebar — tangkap semua <a> yang mengarah ke artikel Merdeka
+  $('a[href*="-mvk.html"]').each((_, el) => {
+    const href = $(el).attr('href');
+    if (isMerdekaArticleUrl(href)) links.add(href.split('?')[0]);
+  });
 
   return [...links];
 }
 
-// ── Scrape halaman indeks kategori ────────────────────────────────────────
-// merdeka.com/<kategori>/indeks.html — listing statis per kategori
+// ── Strategi "artikel-hop" ────────────────────────────────────────────────
+// Setiap halaman artikel Merdeka punya sidebar "Berita Terbaru" (5 artikel)
+// dan "Berita Terpopuler". Dengan crawl beberapa artikel sekaligus,
+// kita bisa dapat puluhan URL artikel.
 
-async function scrapeIndeksPage(categorySlug) {
-  const indeksUrl = `${BASE_URL}/${categorySlug}/indeks.html`;
-  console.log(`[Merdeka] Scraping indeks: ${indeksUrl}`);
-  try {
-    return await scrapeListingPage(indeksUrl);
-  } catch (err) {
-    console.warn(`[Merdeka] Indeks gagal, coba halaman kategori: ${err.message}`);
-    return scrapeListingPage(`${BASE_URL}/${categorySlug}`).catch(() => []);
+async function articleHop(seedUrls, targetCount) {
+  const allUrls  = new Set(seedUrls);
+  const visited  = new Set();
+  const queue    = [...seedUrls].slice(0, 3); // hop dari max 3 artikel seed
+
+  for (const seedUrl of queue) {
+    if (allUrls.size >= targetCount) break;
+    if (visited.has(seedUrl)) continue;
+    visited.add(seedUrl);
+
+    try {
+      const newUrls = await extractUrlsFromPage(seedUrl);
+      newUrls.forEach(u => allUrls.add(u));
+      console.log(`[Merdeka] Hop dari artikel → +${newUrls.length} URL (total: ${allUrls.size})`);
+    } catch { /* skip */ }
   }
+
+  return [...allUrls];
 }
 
-// ── Scrape search ─────────────────────────────────────────────────────────
-// merdeka.com/search/<query> — path-based
+// ── Multi-kategori paralel ────────────────────────────────────────────────
+// Scrape beberapa kategori sekaligus untuk mendapatkan lebih banyak URL
+
+async function scrapeMultiCategory(categorySlugs) {
+  console.log(`[Merdeka] Scraping multi-kategori paralel: ${categorySlugs.join(', ')}`);
+  const results = await Promise.all(
+    categorySlugs.map(slug =>
+      extractUrlsFromPage(`${BASE_URL}/${slug}`).catch(() => [])
+    )
+  );
+  return [...new Set(results.flat())];
+}
+
+// ── Search ────────────────────────────────────────────────────────────────
 
 async function scrapeMerdekaSearch(query) {
   const searchUrl = `${BASE_URL}/search/${encodeURIComponent(query.replace(/\s+/g, '+'))}`;
   console.log(`[Merdeka] Scraping search: ${searchUrl}`);
   try {
-    const urls = await scrapeListingPage(searchUrl);
+    const urls = await extractUrlsFromPage(searchUrl);
     if (urls.length === 0) console.warn('[Merdeka] Search tidak menghasilkan URL.');
     return urls;
   } catch (err) {
@@ -458,16 +361,16 @@ async function scrapeMerdekaSearch(query) {
   }
 }
 
-// ── Scrape tag page ───────────────────────────────────────────────────────
+// ── Tag page ──────────────────────────────────────────────────────────────
 
 async function scrapeTagPage(query) {
   const slug   = query.toLowerCase().replace(/\s+/g, '-');
   const tagUrl = `${BASE_URL}/tag/${encodeURIComponent(slug)}`;
   console.log(`[Merdeka] Scraping tag: ${tagUrl}`);
   try {
-    return await scrapeListingPage(tagUrl);
+    return await extractUrlsFromPage(tagUrl);
   } catch (err) {
-    console.warn(`[Merdeka] Tag page gagal (${slug}):`, err.message);
+    console.warn(`[Merdeka] Tag page gagal:`, err.message);
     return [];
   }
 }
@@ -511,46 +414,55 @@ export async function scrapeMerdeka(query, maxArticles = 5, dateFrom, dateTo) {
     let urls = [];
 
     if (!query) {
-      // Tidak ada query → indeks peristiwa (berita terkini)
-      console.log('[Merdeka] Scraping indeks peristiwa...');
-      urls = await scrapeIndeksPage('peristiwa');
+      // Tidak ada query → multi-kategori default paralel
+      console.log('[Merdeka] Scraping multi-kategori default...');
+      urls = await scrapeMultiCategory(['peristiwa', 'uang', 'trending']);
 
     } else if (CATEGORY_URLS[qLower] && !dateFrom && !dateTo) {
-      // Query cocok dengan nama kategori
-      const catUrl  = CATEGORY_URLS[qLower];
-      const catSlug = catUrl.replace(`${BASE_URL}/`, '');
-      console.log(`[Merdeka] Scraping indeks kategori: ${catSlug}`);
-      urls = await scrapeIndeksPage(catSlug);
+      // Query cocok dengan kategori — ambil dari halaman kategori
+      // PLUS kategori terdekat untuk volume lebih banyak
+      const catSlug = CATEGORY_URLS[qLower].replace(`${BASE_URL}/`, '');
+      console.log(`[Merdeka] Scraping kategori: ${catSlug}`);
+      urls = await extractUrlsFromPage(CATEGORY_URLS[qLower]);
+
+      // Jika kurang, hop dari artikel yang sudah dapat
+      if (urls.length < maxArticles * 2) {
+        urls = await articleHop(urls, maxArticles * 3);
+      }
 
     } else {
       // Query bebas — coba berurutan
 
-      // Strategi 1: Search path-based
+      // Strategi 1: Search
       urls = await scrapeMerdekaSearch(query);
 
       // Strategi 2: Tag page
-      if (urls.length === 0) {
-        urls = await scrapeTagPage(query);
+      if (urls.length < maxArticles) {
+        const tagUrls = await scrapeTagPage(query);
+        urls = [...new Set([...urls, ...tagUrls])];
       }
 
-      // Strategi 3: Indeks kategori relevan
-      if (urls.length === 0) {
+      // Strategi 3: Multi-kategori relevan
+      if (urls.length < maxArticles) {
         const cats = guessCategories(qLower);
-        console.log(`[Merdeka] Fallback indeks kategori: ${cats.join(', ')}`);
-        const results = await Promise.all(
-          cats.map(c => scrapeIndeksPage(c).catch(() => []))
-        );
-        urls = [...new Set(results.flat())];
+        console.log(`[Merdeka] Fallback multi-kategori: ${cats.join(', ')}`);
+        const catUrls = await scrapeMultiCategory(cats);
+        urls = [...new Set([...urls, ...catUrls])];
+      }
+
+      // Strategi 4: Artikel-hop untuk volume lebih banyak
+      if (urls.length < maxArticles * 2 && urls.length > 0) {
+        urls = await articleHop(urls, maxArticles * 3);
       }
     }
 
     // Dedup & batasi
-    urls = [...new Set(urls)].slice(0, maxArticles * 3);
-    console.log(`[Merdeka] URLs ditemukan: ${urls.length}, mulai parse...`);
+    urls = [...new Set(urls)].slice(0, maxArticles * 4);
+    console.log(`[Merdeka] Total URLs dikumpulkan: ${urls.length}, mulai parse...`);
 
     const articles = [];
     for (const url of urls) {
-      if (articles.length >= maxArticles) break;
+      if (articles.length >= maxArticles * 2) break; // parse lebih banyak untuk antisipasi gagal
       const art = await parseArticle(url);
       if (art) {
         articles.push(art);
