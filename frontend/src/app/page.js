@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Search, Sparkles, Filter, Calendar, ExternalLink, X, Newspaper, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { searchRealtime } from '@/services/api';
@@ -72,10 +72,6 @@ export default function RealtimeSearch() {
   const [searchTime, setSearchTime] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
 
-  // Progress overlay state
-  const [progress, setProgress] = useState({ percent: 0, message: '', logs: [] });
-  const abortRef = useRef(null);
-
   // Modal states
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -88,10 +84,6 @@ export default function RealtimeSearch() {
     date_to: '',
   });
 
-  const cancelSearch = () => {
-    if (abortRef.current) abortRef.current.abort();
-  };
-
   const TOPICS = ['Ekonomi', 'Nasional', 'Olahraga', 'Teknologi', 'Hiburan', 'Gaya Hidup', 'Otomotif', 'Kesehatan', 'Pendidikan', 'Opini', 'Politik'];
 
   const PLATFORMS = ['detik', 'kompas', 'cnn', 'republika', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia', 'okezone'];
@@ -103,58 +95,32 @@ export default function RealtimeSearch() {
     { value: 'this_year', label: 'Tahun Ini' },
   ];
 
-  const runSearch = async ({ q, filters: activeFilters }) => {
-    const controller = new AbortController();
-    abortRef.current = controller;
+  const handleSearch = async (e, customQuery = null) => {
+    if (e) e.preventDefault();
+    const q = customQuery !== null ? customQuery : query;
+    if (!q.trim()) return;
+
     setLoading(true);
     setResults([]);
-    setProgress({ percent: 0, message: 'Memulai pencarian...', logs: [] });
 
     try {
-      const res = await searchRealtime({
-        query: q,
-        filters: activeFilters,
-        top_k: 10,
-        signal: controller.signal,
-        onProgress: (event) => {
-          if (event.type === 'progress' || event.type === 'embedding') {
-            setProgress(prev => ({
-              percent: event.percent ?? prev.percent,
-              message: event.message || prev.message,
-              logs: event.message
-                ? [...prev.logs.slice(-9), event.message]
-                : prev.logs,
-            }));
-          }
-        },
-      });
+      const activeFilters = {};
+      if (filters.sources.length > 0) activeFilters.sources = filters.sources;
+      if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
+      if (filters.date_from) activeFilters.date_from = filters.date_from;
+      if (filters.date_to) activeFilters.date_to = filters.date_to;
+
+      const res = await searchRealtime({ query: q, filters: activeFilters, top_k: 10 });
       const sorted = (res.results || []).sort((a, b) => (a.distance ?? 1) - (b.distance ?? 1));
       setResults(sorted);
       setSearchTime(res.query_time || 0);
       setTotalResults(res.total || 0);
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('Search dibatalkan oleh user.');
-      } else {
-        console.error('Search Error:', error);
-        alert(error.message);
-      }
+      console.error("Search Error:", error);
+      alert(error.message);
     } finally {
       setLoading(false);
-      abortRef.current = null;
     }
-  };
-
-  const handleSearch = async (e, customQuery = null) => {
-    if (e) e.preventDefault();
-    const q = customQuery !== null ? customQuery : query;
-    if (!q.trim()) return;
-    const activeFilters = {};
-    if (filters.sources.length > 0) activeFilters.sources = filters.sources;
-    if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
-    if (filters.date_from) activeFilters.date_from = filters.date_from;
-    if (filters.date_to) activeFilters.date_to = filters.date_to;
-    await runSearch({ q, filters: activeFilters });
   };
 
   const handleTopicClick = (topic) => {
@@ -173,117 +139,34 @@ export default function RealtimeSearch() {
 
   const handleQuickSource = async (source) => {
     setShowSourceModal(false);
+    setLoadingSource(source);
     setActiveSource(source);
     setResults([]);
     setSearchTime(0);
     setTotalResults(0);
-    const activeFilters = { sources: [source] };
-    if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
-    if (filters.date_from) activeFilters.date_from = filters.date_from;
-    if (filters.date_to) activeFilters.date_to = filters.date_to;
-    await runSearch({ q: '', filters: activeFilters });
-    setLoadingSource(null);
+
+    try {
+      const activeFilters = { sources: [source] };
+      if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
+      if (filters.date_from) activeFilters.date_from = filters.date_from;
+      if (filters.date_to) activeFilters.date_to = filters.date_to;
+
+      const res = await searchRealtime({ query: '', filters: activeFilters, top_k: 10 });
+      setResults(res.results || []);
+      setSearchTime(res.query_time || 0);
+      setTotalResults((res.results || []).length);
+    } catch (error) {
+      console.error('[QuickSource] Error:', error);
+      alert(error.message);
+    } finally {
+      setLoadingSource(null);
+    }
   };
 
   const hasActiveFilters = filters.sources.length > 0 || filters.date_preset || filters.date_from || filters.date_to;
 
   return (
     <div className="container animate-fade-in">
-
-      {/* ── Blocking Progress Overlay ─────────────────────────────────────── */}
-      {loading && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          background: 'rgba(5, 5, 15, 0.92)',
-          backdropFilter: 'blur(12px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexDirection: 'column', gap: '1.5rem',
-          padding: '2rem',
-          animation: 'fadeIn 0.25s ease',
-        }}>
-          {/* Icon & Title */}
-          <div style={{ textAlign: 'center' }}>
-            <div style={{
-              width: '56px', height: '56px', borderRadius: '50%',
-              background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 1rem', boxShadow: '0 0 32px rgba(99,102,241,0.5)',
-            }}>
-              <Sparkles size={24} color="white" />
-            </div>
-            <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: 'white' }}>
-              Sedang Mencari Berita
-            </h2>
-            <p style={{ margin: '0.4rem 0 0', color: 'rgba(255,255,255,0.5)', fontSize: '0.875rem' }}>
-              {progress.message || 'Memulai pencarian...'}
-            </p>
-          </div>
-
-          {/* Progress Bar */}
-          <div style={{ width: '100%', maxWidth: '480px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>Progress</span>
-              <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#a5b4fc' }}>
-                {progress.percent}%
-              </span>
-            </div>
-            <div style={{
-              height: '10px', borderRadius: '99px',
-              background: 'rgba(255,255,255,0.08)',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                height: '100%', borderRadius: '99px',
-                width: `${progress.percent}%`,
-                background: 'linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7)',
-                transition: 'width 0.4s cubic-bezier(0.4,0,0.2,1)',
-                boxShadow: '0 0 12px rgba(139,92,246,0.7)',
-              }} />
-            </div>
-          </div>
-
-          {/* Scraper Logs */}
-          <div style={{
-            width: '100%', maxWidth: '480px',
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '12px', padding: '0.75rem 1rem',
-            maxHeight: '180px', overflowY: 'auto',
-            display: 'flex', flexDirection: 'column', gap: '4px',
-          }}>
-            {progress.logs.length === 0
-              ? <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem' }}>Menunggu scraper...</span>
-              : progress.logs.map((log, i) => (
-                <div key={i} style={{
-                  fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)',
-                  padding: '2px 0', borderBottom: i < progress.logs.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                }}>
-                  {log}
-                </div>
-              ))
-            }
-          </div>
-
-          {/* Cancel Button */}
-          <button
-            onClick={cancelSearch}
-            style={{
-              padding: '10px 28px', borderRadius: '10px', cursor: 'pointer',
-              border: '1px solid rgba(239,68,68,0.5)',
-              background: 'rgba(239,68,68,0.1)',
-              color: '#fca5a5', fontSize: '0.9rem', fontWeight: 600,
-              display: 'flex', alignItems: 'center', gap: '6px',
-              transition: 'all 0.2s',
-            }}
-          >
-            <X size={15} /> Batalkan Pencarian
-          </button>
-
-          <style>{`
-            @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
-          `}</style>
-        </div>
-      )}
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
 

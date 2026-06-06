@@ -109,30 +109,23 @@ export async function triggerManualScrape(sources = ['all'], max_articles = 200)
 }
 
 /**
- * Realtime Search API (Node.js Backend) — NDJSON Streaming
- * 
- * @param {object} params
- * @param {string} params.query
- * @param {number} params.top_k
- * @param {object} params.filters
- * @param {Function} params.onProgress  — dipanggil setiap event progress: (event) => void
- * @param {AbortSignal} params.signal   — untuk cancel request
+ * Realtime Search API (Node.js Backend)
  */
-export async function searchRealtime({ query, top_k = 10, filters = {}, onProgress, signal }) {
+export async function searchRealtime({ query, top_k = 10, filters = {} }) {
   const url = `${REALTIME_API_URL}/realtime/search`;
   console.log(url);
-
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({
       query,
       sources: filters.sources?.length ? filters.sources : undefined,
       date_from: filters.date_from || undefined,
-      date_to:   filters.date_to   || undefined,
-      top_k,
-    }),
-    signal, // AbortController signal
+      date_to: filters.date_to || undefined,
+      top_k
+    })
   });
 
   if (!response.ok) {
@@ -140,34 +133,5 @@ export async function searchRealtime({ query, top_k = 10, filters = {}, onProgre
     throw new Error(errorData.detail || errorData.error || `HTTP Error ${response.status}`);
   }
 
-  // ── Baca NDJSON stream line-by-line ──
-  const reader  = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop(); // sisa baris belum lengkap
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        const event = JSON.parse(trimmed);
-        if (onProgress) onProgress(event);
-        // Jika event final, kembalikan hasilnya
-        if (event.type === 'result') return event;
-        if (event.type === 'error') throw new Error(event.message);
-      } catch (parseErr) {
-        // Abaikan baris yang bukan JSON valid
-        console.warn('[API] Gagal parse NDJSON line:', trimmed);
-      }
-    }
-  }
-
-  throw new Error('Stream berakhir tanpa hasil.');
+  return response.json();
 }
