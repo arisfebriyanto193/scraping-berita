@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Search, Sparkles, Filter, Calendar, ExternalLink, X, Newspaper, ChevronRight } from 'lucide-react';
+import { Search, Sparkles, Filter, Calendar, ExternalLink, X, Newspaper, ChevronRight, Globe, Zap, Layers } from 'lucide-react';
 import { format } from 'date-fns';
 import { searchRealtime } from '@/services/api';
 
@@ -62,6 +62,52 @@ function Modal({ open, onClose, title, children }) {
   );
 }
 
+// ── Mode Toggle Component ──────────────────────────────────────────────────
+function ModeToggle({ mode, onChange }) {
+  const modes = [
+    {
+      id: 'auto',
+      label: 'Multi Portal',
+      desc: 'Scrape portal manapun via URL',
+      icon: <Globe size={16} />,
+    },
+    // {
+    //   id: 'kurasi',
+    //   label: 'Mode Kurasi',
+    //   desc: '10 portal berita terkurasi',
+    //   icon: <Layers size={16} />,
+    // },
+  ];
+
+  return (
+    <div style={{
+      display: 'flex', gap: '0.5rem',
+      background: 'rgba(255,255,255,0.05)',
+      border: '1px solid var(--surface-border)',
+      borderRadius: '12px', padding: '4px',
+      marginBottom: '1rem',
+    }}>
+      {modes.map(m => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => onChange(m.id)}
+          style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            padding: '10px 12px', borderRadius: '9px', cursor: 'pointer', border: 'none',
+            background: mode === m.id ? 'var(--primary)' : 'transparent',
+            color: 'white', fontSize: '0.875rem', fontWeight: mode === m.id ? 600 : 400,
+            transition: 'all 0.2s',
+          }}
+        >
+          {m.icon}
+          <span>{m.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function RealtimeSearch() {
   const [query, setQuery] = useState('');
@@ -72,21 +118,25 @@ export default function RealtimeSearch() {
   const [searchTime, setSearchTime] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
 
+  // Mode: 'auto' | 'kurasi'
+  const [mode, setMode] = useState('auto');
+
+  // URL input untuk mode auto (raw text, bisa banyak URL dipisah baris/koma)
+  const [urlInput, setUrlInput] = useState('');
+
   // Modal states
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState({
-    sources: [],
     date_preset: '',
     date_from: '',
     date_to: '',
   });
 
-  const TOPICS = ['Ekonomi', 'Nasional', 'Olahraga', 'Teknologi', 'Hiburan', 'Gaya Hidup', 'Otomotif', 'Kesehatan', 'Pendidikan', 'Opini', 'Politik'];
-
   const PLATFORMS = ['detik', 'kompas', 'cnn', 'republika', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia', 'okezone'];
+
   const DATE_PRESETS = [
     { value: '', label: 'All Time' },
     { value: 'today', label: 'Hari Ini' },
@@ -95,22 +145,48 @@ export default function RealtimeSearch() {
     { value: 'this_year', label: 'Tahun Ini' },
   ];
 
-  const handleSearch = async (e, customQuery = null) => {
+  /**
+   * Parse URL input (bisa dipisah koma, spasi, newline)
+   */
+  function parseUrls(raw) {
+    return raw
+      .split(/[\n,]+/)
+      .map(u => u.trim())
+      .filter(u => {
+        try { new URL(u); return true; } catch { return false; }
+      });
+  }
+
+  const handleSearch = async (e) => {
     if (e) e.preventDefault();
-    const q = customQuery !== null ? customQuery : query;
-    if (!q.trim()) return;
+    if (!query.trim() && mode === 'auto' && !urlInput.trim()) return;
+    if (!query.trim() && mode === 'kurasi') return;
 
     setLoading(true);
     setResults([]);
 
     try {
+      const custom_urls = mode === 'auto' ? parseUrls(urlInput) : [];
+
+      if (mode === 'auto' && custom_urls.length === 0) {
+        alert('Masukkan minimal 1 URL portal berita yang valid.');
+        setLoading(false);
+        return;
+      }
+
       const activeFilters = {};
-      if (filters.sources.length > 0) activeFilters.sources = filters.sources;
       if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
       if (filters.date_from) activeFilters.date_from = filters.date_from;
       if (filters.date_to) activeFilters.date_to = filters.date_to;
 
-      const res = await searchRealtime({ query: q, filters: activeFilters, top_k: 10 });
+      const res = await searchRealtime({
+        query,
+        filters: activeFilters,
+        top_k: 10,
+        mode,
+        custom_urls,
+      });
+
       const sorted = (res.results || []).sort((a, b) => (a.distance ?? 1) - (b.distance ?? 1));
       setResults(sorted);
       setSearchTime(res.query_time || 0);
@@ -123,20 +199,6 @@ export default function RealtimeSearch() {
     }
   };
 
-  const handleTopicClick = (topic) => {
-    setQuery(topic);
-    handleSearch(null, topic);
-  };
-
-  const toggleSource = (source) => {
-    setFilters(prev => {
-      const sources = prev.sources.includes(source)
-        ? prev.sources.filter(s => s !== source)
-        : [...prev.sources, source];
-      return { ...prev, sources };
-    });
-  };
-
   const handleQuickSource = async (source) => {
     setShowSourceModal(false);
     setLoadingSource(source);
@@ -146,12 +208,17 @@ export default function RealtimeSearch() {
     setTotalResults(0);
 
     try {
-      const activeFilters = { sources: [source] };
+      const activeFilters = {};
       if (filters.date_preset) activeFilters.date_preset = filters.date_preset;
       if (filters.date_from) activeFilters.date_from = filters.date_from;
       if (filters.date_to) activeFilters.date_to = filters.date_to;
 
-      const res = await searchRealtime({ query: '', filters: activeFilters, top_k: 10 });
+      const res = await searchRealtime({
+        query: '',
+        filters: { ...activeFilters, sources: [source] },
+        top_k: 10,
+        mode: 'kurasi',
+      });
       setResults(res.results || []);
       setSearchTime(res.query_time || 0);
       setTotalResults((res.results || []).length);
@@ -163,17 +230,18 @@ export default function RealtimeSearch() {
     }
   };
 
-  const hasActiveFilters = filters.sources.length > 0 || filters.date_preset || filters.date_from || filters.date_to;
+  const hasActiveFilters = filters.date_preset || filters.date_from || filters.date_to;
+  const parsedUrls = parseUrls(urlInput);
 
   return (
     <div className="container animate-fade-in">
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
 
-      {/* Modal: Berita Terbaru (Platform Picker) */}
-      <Modal open={showSourceModal} onClose={() => setShowSourceModal(false)} title="📰 Pilih Platform Berita">
+      {/* Modal: Berita Terbaru (Platform Picker) — hanya mode kurasi */}
+      <Modal open={showSourceModal} onClose={() => setShowSourceModal(false)} title="📰 Pilih Portal Berita">
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>
-          Klik platform untuk langsung melihat 10 berita terbaru.
+          Klik portal untuk langsung melihat 10 berita terbaru.
         </p>
         <div className="grid grid-cols-2 gap-3">
           {PLATFORMS.map(p => {
@@ -208,36 +276,6 @@ export default function RealtimeSearch() {
       {/* Modal: Filter */}
       <Modal open={showFilterModal} onClose={() => setShowFilterModal(false)} title="⚙️ Filter Pencarian">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-
-          {/* Sumber Berita */}
-          <div>
-            <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Sumber Berita
-            </h4>
-            <div className="grid grid-cols-2 gap-2">
-              {PLATFORMS.map(p => (
-                <button
-                  key={`filter-src-${p}`}
-                  type="button"
-                  onClick={() => toggleSource(p)}
-                  style={{
-                    padding: '10px 12px', borderRadius: '10px', cursor: 'pointer',
-                    border: `1px solid ${filters.sources.includes(p) ? 'var(--primary)' : 'var(--surface-border)'}`,
-                    background: filters.sources.includes(p) ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)',
-                    color: 'white', fontSize: '0.875rem', fontWeight: 500, textTransform: 'capitalize',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            {filters.sources.length > 0 && (
-              <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--primary)' }}>
-                ✓ {filters.sources.length} sumber dipilih
-              </p>
-            )}
-          </div>
 
           {/* Rentang Tanggal */}
           <div>
@@ -300,7 +338,7 @@ export default function RealtimeSearch() {
           <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.5rem' }}>
             <button
               type="button"
-              onClick={() => setFilters({ sources: [], date_preset: '', date_from: '', date_to: '' })}
+              onClick={() => setFilters({ date_preset: '', date_from: '', date_to: '' })}
               style={{
                 flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer',
                 border: '1px solid var(--surface-border)', background: 'rgba(255,255,255,0.04)',
@@ -330,11 +368,50 @@ export default function RealtimeSearch() {
           Realtime Search
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', marginBottom: '2rem' }}>
-          Live News Scraping & Sentence Embedding
+          Live News Scraping &amp; Sentence Embedding
         </p>
 
         <form onSubmit={handleSearch} style={{ maxWidth: '800px', margin: '0 auto' }}>
-          {/* Search Bar */}
+
+          {/* ── Mode Toggle ──────────────────────────────────────────────── */}
+          <ModeToggle mode={mode} onChange={(m) => { setMode(m); setResults([]); setSearchTime(0); }} />
+
+          {/* ── URL Input (Mode Auto) ──────────────────────────────────── */}
+          {mode === 'auto' && (
+            <div style={{ marginBottom: '0.85rem' }}>
+              <div style={{ position: 'relative' }}>
+                <Globe style={{ position: 'absolute', left: '1rem', top: '14px', color: 'var(--text-muted)', pointerEvents: 'none' }} size={16} />
+                <textarea
+                  className="input-glass w-full"
+                  rows={2}
+                  style={{
+                    paddingLeft: '2.75rem', paddingRight: '1rem', paddingTop: '0.75rem', paddingBottom: '0.75rem',
+                    fontSize: '0.9rem', resize: 'none', lineHeight: 1.5,
+                    fontFamily: 'inherit',
+                  }}
+                  placeholder="URL portal berita (pisah dengan koma atau baris baru)&#10;Contoh: https://tempo.co, https://mediaindonesia.com"
+                  value={urlInput}
+                  onChange={e => setUrlInput(e.target.value)}
+                />
+              </div>
+              {parsedUrls.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                  {parsedUrls.map((u, i) => (
+                    <span key={i} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                      background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)',
+                      borderRadius: '99px', padding: '2px 10px', fontSize: '0.75rem', color: 'rgba(255,255,255,0.85)',
+                    }}>
+                      <Globe size={11} />
+                      {(() => { try { return new URL(u).hostname.replace('www.', ''); } catch { return u; } })()}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Search Bar ──────────────────────────────────────────────── */}
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'stretch' }}>
             <div style={{ position: 'relative', flex: 1 }}>
               <Search style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
@@ -342,7 +419,9 @@ export default function RealtimeSearch() {
                 type="text"
                 className="input-glass w-full"
                 style={{ paddingLeft: '2.75rem', paddingRight: '1rem', height: '48px', fontSize: '1rem' }}
-                placeholder="Cari berita terkini berdasarkan makna..."
+                placeholder={mode === 'auto'
+                  ? 'Kata kunci pencarian (opsional)...'
+                  : 'Cari berita terkini berdasarkan makna...'}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -357,64 +436,65 @@ export default function RealtimeSearch() {
             </button>
           </div>
 
-          {/* Quick Topics */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center', marginTop: '1.2rem' }}>
-            {TOPICS.map(topic => (
-              <button
-                key={topic}
-                type="button"
-                className="btn-glass hover-primary"
-                style={{ fontSize: '0.8rem', padding: '4px 12px', borderRadius: '99px', transition: 'all 0.2s', cursor: 'pointer' }}
-                onClick={() => handleTopicClick(topic)}
-              >
-                #{topic}
-              </button>
-            ))}
-          </div>
-
-          {/* Action Buttons: Berita Terbaru + Filter */}
+          {/* ── Action Buttons ─────────────────────────────────────────── */}
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
-            {/* Berita Terbaru Button */}
-            <button
-              type="button"
-              onClick={() => setShowSourceModal(true)}
-              style={{
-                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                padding: '12px', borderRadius: '12px', cursor: 'pointer',
-                border: `1px solid ${activeSource ? 'var(--primary)' : 'var(--surface-border)'}`,
-                background: activeSource ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)',
-                color: 'white', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s',
-              }}
-            >
-              {loadingSource
-                ? <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
-                : <Newspaper size={16} />
-              }
-              <span>
+
+            {/* Berita Terbaru — hanya tampil di mode kurasi */}
+            {mode === 'kurasi' && (
+              <button
+                type="button"
+                onClick={() => setShowSourceModal(true)}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  padding: '12px', borderRadius: '12px', cursor: 'pointer',
+                  border: `1px solid ${activeSource ? 'var(--primary)' : 'var(--surface-border)'}`,
+                  background: activeSource ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)',
+                  color: 'white', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s',
+                }}
+              >
                 {loadingSource
-                  ? `Memuat ${loadingSource}...`
-                  : activeSource
-                    ? `Berita: ${activeSource}`
-                    : 'Berita Terbaru'}
-              </span>
-            </button>
+                  ? <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
+                  : <Newspaper size={16} />
+                }
+                <span>
+                  {loadingSource
+                    ? `Memuat ${loadingSource}...`
+                    : activeSource
+                      ? `Berita: ${activeSource}`
+                      : 'Berita Terbaru'}
+                </span>
+              </button>
+            )}
+
+            {/* Info banner mode auto */}
+            {mode === 'auto' && (
+              <div style={{
+                flex: 1, display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '12px', borderRadius: '12px',
+                border: '1px solid rgba(99,102,241,0.3)',
+                background: 'rgba(99,102,241,0.08)',
+                color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem',
+              }}>
+                <Zap size={15} style={{ color: '#818cf8', flexShrink: 0 }} />
+                <span>Masukkan URL portal berita di atas, sistem akan otomatis mengekstrak artikel.</span>
+              </div>
+            )}
 
             {/* Filter Button */}
             <button
               type="button"
               onClick={() => setShowFilterModal(true)}
               style={{
-                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                padding: '12px', borderRadius: '12px', cursor: 'pointer',
+                flex: mode === 'auto' ? '0 0 auto' : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                padding: '12px 18px', borderRadius: '12px', cursor: 'pointer',
                 border: `1px solid ${hasActiveFilters ? 'var(--primary)' : 'var(--surface-border)'}`,
                 background: hasActiveFilters ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)',
                 color: 'white', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s',
               }}
             >
               <Filter size={16} />
-              <span>
-                Filter{hasActiveFilters ? ` (${(filters.sources.length > 0 ? filters.sources.length : 0) + (filters.date_preset || filters.date_from ? 1 : 0)} aktif)` : ''}
-              </span>
+              <span>Filter{hasActiveFilters ? ` (${(filters.date_preset || filters.date_from ? 1 : 0)} aktif)` : ''}</span>
             </button>
           </div>
         </form>
@@ -485,7 +565,7 @@ export default function RealtimeSearch() {
       {results.length === 0 && searchTime > 0 && (
         <div className="text-center" style={{ padding: '4rem 0', color: 'var(--text-muted)' }}>
           <h3>Tidak ada berita yang relevan ditemukan.</h3>
-          <p>Coba gunakan kata kunci lain.</p>
+          <p>Coba gunakan kata kunci lain atau periksa URL portal yang dimasukkan.</p>
         </div>
       )}
     </div>

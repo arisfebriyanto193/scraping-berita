@@ -110,8 +110,10 @@ export async function triggerManualScrape(sources = ['all'], max_articles = 200)
 
 /**
  * Realtime Search API (Node.js Backend)
+ * mode: 'kurasi' | 'auto'
+ * custom_urls: array of portal URLs (for mode 'auto')
  */
-export async function searchRealtime({ query, top_k = 10, filters = {} }) {
+export async function searchRealtime({ query, top_k = 10, filters = {}, mode = 'kurasi', custom_urls = [] }) {
   const url = `${REALTIME_API_URL}/realtime/search`;
   console.log(url);
   const response = await fetch(url, {
@@ -121,7 +123,9 @@ export async function searchRealtime({ query, top_k = 10, filters = {} }) {
     },
     body: JSON.stringify({
       query,
-      sources: filters.sources?.length ? filters.sources : undefined,
+      mode,
+      custom_urls: mode === 'auto' ? custom_urls : undefined,
+      sources: mode === 'kurasi' && filters.sources?.length ? filters.sources : undefined,
       date_from: filters.date_from || undefined,
       date_to: filters.date_to || undefined,
       top_k

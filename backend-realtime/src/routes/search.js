@@ -1,10 +1,14 @@
 /**
  * search.js - Route untuk realtime search
  * POST /realtime/search
- * 
+ *
+ * Mode Scraping:
+ * - mode: 'kurasi'  → Scrape dari 10 portal yang sudah dikonfigurasi
+ * - mode: 'auto'    → Universal crawler, scrape dari custom_urls yang diberikan user
+ *
  * Alur:
- * 1. Terima query + filters dari frontend
- * 2. Scrape berita terkini dari 4 portal secara paralel
+ * 1. Terima query + mode + custom_urls + filters dari frontend
+ * 2. Scrape berita dari sumber yang relevan secara paralel
  * 3. Hitung sentence embedding untuk query dan semua artikel
  * 4. Hitung cosine similarity, urutkan ascending (distance terkecil = paling relevan)
  * 5. Terapkan filter tanggal jika ada
@@ -22,6 +26,7 @@ import { scrapeLiputan6 } from '../scrapers/liputan6.js';
 import { scrapeSindo } from '../scrapers/sindo.js';
 import { scrapeCNBC } from '../scrapers/cnbcindonesia.js';
 import { scrapeOkezone } from '../scrapers/okezone.js';
+import { scrapeMultiplePortals } from '../scrapers/universal.js';
 import { embedTexts, cosineSimilarity } from '../services/embedder.js';
 
 const router = express.Router();
@@ -33,7 +38,7 @@ const MAX_PER_SOURCE = parseInt(process.env.MAX_ARTICLES_PER_SOURCE || '5');
  */
 function applyDateFilter(articles, date_from, date_to) {
   return articles.filter(article => {
-    if (!article.published_date) return true; // Jika tidak ada tanggal, tetap masukkan
+    if (!article.published_date) return true;
 
     const pubDate = new Date(article.published_date);
     if (isNaN(pubDate.getTime())) return true;
@@ -56,56 +61,89 @@ function applyDateFilter(articles, date_from, date_to) {
 
 /**
  * POST /realtime/search
- * Body: { query, sources?, date_from?, date_to?, top_k? }
+ * Body: {
+ *   query,
+ *   mode?          'auto' | 'kurasi'  (default: 'kurasi')
+ *   custom_urls?,  array URL portal untuk mode auto
+ *   sources?,      array nama portal untuk mode kurasi
+ *   date_from?,
+ *   date_to?,
+ *   top_k?
+ * }
  */
 router.post('/search', async (req, res) => {
   const startTime = Date.now();
 
   const {
     query,
+    mode = 'kurasi',
+    custom_urls = [],
     sources = ['detik', 'kompas', 'cnn', 'republika', 'tribun', 'antara', 'liputan6', 'sindo', 'cnbcindonesia', 'okezone'],
     date_from,
     date_to,
     top_k = 10,
   } = req.body;
 
-  // Allow empty query to just fetch latest news
   if (query === undefined || query === null) {
     return res.status(400).json({ error: 'Query parameter is required (can be empty string)' });
   }
 
-  console.log(`\n[Search] Query: "${query}" | Sources: ${sources.join(', ')}`);
+  console.log(`\n[Search] Query: "${query}" | Mode: ${mode} | Sources: ${mode === 'auto' ? custom_urls.join(', ') : sources.join(', ')}`);
 
   try {
-    // ─────────────────────────────────────────────
-    // STEP 1: Scraping paralel dari semua sumber
-    // ─────────────────────────────────────────────
-    const scraperMap = {
-      detik: () => scrapeDetik(query, MAX_PER_SOURCE, date_from, date_to),
-      kompas: () => scrapeKompas(query, MAX_PER_SOURCE, date_from, date_to),
-      cnn: () => scrapeCNN(query, MAX_PER_SOURCE, date_from, date_to),
-      republika: () => scrapeRepublika(query, MAX_PER_SOURCE, date_from, date_to),
-      tribun: () => scrapeTribun(query, MAX_PER_SOURCE, date_from, date_to),
-      antara: () => scrapeAntara(query, MAX_PER_SOURCE, date_from, date_to),
-      liputan6: () => scrapeLiputan6(query, MAX_PER_SOURCE, date_from, date_to),
-      sindo: () => scrapeSindo(query, MAX_PER_SOURCE, date_from, date_to),
-      cnbcindonesia: () => scrapeCNBC(query, MAX_PER_SOURCE, date_from, date_to),
-      okezone: () => scrapeOkezone(query, MAX_PER_SOURCE, date_from, date_to),
-    };
-
-    const activeScrapers = sources
-      .filter(s => scraperMap[s])
-      .map(s => scraperMap[s]());
-
-    console.log(`[Search] Menjalankan ${activeScrapers.length} scraper secara paralel...`);
-    const scrapedArrays = await Promise.allSettled(activeScrapers);
-
     let allArticles = [];
-    for (const result of scrapedArrays) {
-      if (result.status === 'fulfilled') {
-        allArticles = allArticles.concat(result.value);
-      } else {
-        console.error('[Search] Scraper error:', result.reason?.message);
+
+    // ─────────────────────────────────────────────
+    // STEP 1: Scraping berdasarkan mode
+    // ─────────────────────────────────────────────
+
+    if (mode === 'auto') {
+      // Mode Auto: Universal crawler dari URL yang diberikan user
+      if (!custom_urls || custom_urls.length === 0) {
+        return res.status(400).json({ error: 'Mode auto membutuhkan minimal 1 URL portal (custom_urls)' });
+      }
+
+      const validUrls = custom_urls
+        .map(u => u.trim())
+        .filter(u => {
+          try { new URL(u); return true; } catch { return false; }
+        });
+
+      if (validUrls.length === 0) {
+        return res.status(400).json({ error: 'Tidak ada URL valid yang diberikan' });
+      }
+
+      console.log(`[Search] Mode AUTO — Scraping ${validUrls.length} portal secara universal...`);
+      allArticles = await scrapeMultiplePortals(validUrls, MAX_PER_SOURCE, query);
+
+    } else {
+      // Mode Kurasi: Scrape dari portal yang sudah dikonfigurasi
+      const scraperMap = {
+        detik: () => scrapeDetik(query, MAX_PER_SOURCE, date_from, date_to),
+        kompas: () => scrapeKompas(query, MAX_PER_SOURCE, date_from, date_to),
+        cnn: () => scrapeCNN(query, MAX_PER_SOURCE, date_from, date_to),
+        republika: () => scrapeRepublika(query, MAX_PER_SOURCE, date_from, date_to),
+        tribun: () => scrapeTribun(query, MAX_PER_SOURCE, date_from, date_to),
+        antara: () => scrapeAntara(query, MAX_PER_SOURCE, date_from, date_to),
+        liputan6: () => scrapeLiputan6(query, MAX_PER_SOURCE, date_from, date_to),
+        sindo: () => scrapeSindo(query, MAX_PER_SOURCE, date_from, date_to),
+        cnbcindonesia: () => scrapeCNBC(query, MAX_PER_SOURCE, date_from, date_to),
+        okezone: () => scrapeOkezone(query, MAX_PER_SOURCE, date_from, date_to),
+      };
+
+      const activeScrapers = sources
+        .filter(s => scraperMap[s])
+        .map(s => scraperMap[s]());
+
+      console.log(`[Search] Mode KURASI — Menjalankan ${activeScrapers.length} scraper secara paralel...`);
+      const scrapedArrays = await Promise.allSettled(activeScrapers);
+
+      for (const result of scrapedArrays) {
+        if (result.status === 'fulfilled') {
+          allArticles = allArticles.concat(result.value);
+        } else {
+          console.error('[Search] Scraper error:', result.reason?.message);
+        }
       }
     }
 
@@ -116,7 +154,9 @@ router.post('/search', async (req, res) => {
         results: [],
         total: 0,
         query_time: (Date.now() - startTime) / 1000,
-        message: 'Tidak ada artikel berhasil di-scrape',
+        message: mode === 'auto'
+          ? 'Tidak ada artikel berhasil di-scrape. Pastikan URL portal berita valid dan dapat diakses.'
+          : 'Tidak ada artikel berhasil di-scrape',
       });
     }
 
@@ -138,14 +178,12 @@ router.post('/search', async (req, res) => {
     }
 
     // ─────────────────────────────────────────────
-    // STEP 3 & 4: Hitung Sentence Embedding (Hanya jika ada query)
+    // STEP 3 & 4: Hitung Sentence Embedding
     // ─────────────────────────────────────────────
     let results = [];
     if (query.trim()) {
       console.log(`[Search] Menghitung embedding untuk query dan ${allArticles.length} artikel...`);
 
-      // Gabungkan: query sebagai elemen pertama, lalu semua artikel
-      // Teks artikel = judul (dikuatkan 3x) + konten (250 karakter pertama)
       const textsToEmbed = [
         query,
         ...allArticles.map(a => `${a.title} ${a.title} ${a.title} ${a.content.substring(0, 250)}`),
@@ -165,12 +203,10 @@ router.post('/search', async (req, res) => {
         };
       });
 
-      // Urutkan: distance terkecil (paling relevan) dulu
       scored.sort((a, b) => a.distance - b.distance);
       results = scored.slice(0, top_k);
     } else {
       console.log(`[Search] Tanpa query, mengembalikan artikel terbaru langsung...`);
-      // Jika tidak ada query, kembalikan artikel tanpa distance score
       results = allArticles.slice(0, top_k);
     }
 
@@ -183,6 +219,7 @@ router.post('/search', async (req, res) => {
       total: results.length,
       total_scraped: allArticles.length,
       query_time: queryTime,
+      mode,
     });
 
   } catch (err) {
