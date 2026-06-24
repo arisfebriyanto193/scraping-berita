@@ -535,7 +535,7 @@ export default function RealtimeSearch() {
                 return (
                   <div
                     className="score-badge"
-                    title={`TF-IDF Similarity\nRaw similarity: ${sim.toFixed(4)}\nRank score: ${d.toFixed(4)} (0=terbaik dalam batch)`}
+                    title={`Semantic Similarity\nRaw similarity: ${sim.toFixed(4)}\nRank score: ${d.toFixed(4)} (0=terbaik dalam batch)`}
                     style={{ color }}
                   >
                     <Sparkles size={12} />

@@ -13,11 +13,14 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity as sk_cosine
-    HAS_SKLEARN = True
+    from sentence_transformers import SentenceTransformer, util
+    HAS_SBERT = True
+    print("Memuat model Sentence Embedding (paraphrase-multilingual-MiniLM-L12-v2)...")
+    embedder = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+    print("Model berhasil dimuat.")
 except ImportError:
-    HAS_SKLEARN = False
+    HAS_SBERT = False
+    embedder = None
 
 from scraper import (
     crawl_listing,
@@ -158,25 +161,24 @@ def scrape_parallel(urls: list, max_workers: int = MAX_WORKERS) -> list:
 
 def compute_similarity_scores(query: str, articles: list) -> dict:
     """
-    Hitung TF-IDF cosine similarity antara query dan setiap artikel.
+    Hitung Semantic cosine similarity menggunakan Sentence Embedding antara query dan setiap artikel.
     Kembalikan dict {url: (normalized_distance, raw_similarity)} di mana:
       - normalized_distance: [0.0, 1.0] relatif terhadap batch → untuk sorting
       - raw_similarity:      nilai mentah cosine similarity → untuk badge warna
-
-    Memisahkan keduanya penting agar badge tidak menyesatkan:
-    artikel yang secara absolut tidak relevan (raw_sim ≈ 0) tetap
-    tampil merah meskipun ia yang 'terbaik' dalam batch.
     """
     if not query or not articles:
         return {}
 
-    if HAS_SKLEARN:
+    if HAS_SBERT and embedder is not None:
         corpus = [f"{a['title']} {a['content']}" for a in articles]
-        docs   = [query] + corpus  # query di index 0
         try:
-            vec   = TfidfVectorizer(sublinear_tf=True, max_features=20000)
-            tfidf = vec.fit_transform(docs)
-            sims  = sk_cosine(tfidf[0:1], tfidf[1:]).flatten()  # raw similarity [0..1]
+            # Generate embeddings
+            query_embedding = embedder.encode(query, convert_to_tensor=True)
+            corpus_embeddings = embedder.encode(corpus, convert_to_tensor=True)
+            
+            # Compute cosine similarity
+            cos_scores = util.cos_sim(query_embedding, corpus_embeddings)[0]
+            sims = cos_scores.cpu().numpy()
 
             # Raw distance = 1 - cosine_similarity
             raw_dist = {art["url"]: float(1.0 - sim) for art, sim in zip(articles, sims)}
@@ -194,18 +196,18 @@ def compute_similarity_scores(query: str, articles: list) -> dict:
                 result[url] = (norm_d, raw_sim[url])
 
             log.info(
-                f"TF-IDF raw similarity range: "
+                f"Semantic raw similarity range: "
                 f"[{min(raw_sim.values()):.4f}, {max(raw_sim.values()):.4f}]"
             )
             return result
 
         except Exception as e:
-            log.warning(f"TF-IDF scoring error: {e}")
+            log.warning(f"Semantic scoring error: {e}")
             return {}
 
     else:
         # Fallback: frekuensi keyword
-        log.warning("scikit-learn tidak tersedia, pakai keyword frequency fallback")
+        log.warning("sentence-transformers tidak tersedia, pakai keyword frequency fallback")
         q_lower = query.lower()
         freq_map = {}
         for art in articles:
