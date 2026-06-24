@@ -56,7 +56,7 @@ _SKIP_EXT = re.compile(
     re.I,
 )
 
-# Segmen path yang menandakan BUKAN halaman artikel
+# Segmen path 
 _SKIP_PATH = re.compile(
     r"/(tag|tags|category|kategori|search|pencarian|page|author|penulis|"
     r"login|register|about|contact|advertise|privacy|terms|sitemap|feed|rss|"
@@ -353,7 +353,6 @@ def _extract_content(soup: BeautifulSoup, html: str) -> str:
 # ───────────────────────────────────────────────────────────────
 #  CRAWL LISTING → KUMPULKAN URL ARTIKEL
 # ───────────────────────────────────────────────────────────────
-
 def crawl_listing(listing_url: str, jumlah: int) -> list:
     """
     Ambil halaman listing/homepage, ekstrak link artikel.
