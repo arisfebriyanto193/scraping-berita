@@ -134,13 +134,13 @@ function extractWithCheerio(html, url, sourceName) {
       $('article img').first().attr('src') ||
       null;
 
-    // Coba ambil tanggal publikasi
+    //  ambil tanggal publikasi
     const publishedDate =
       $('meta[property="article:published_time"]').attr('content') ||
       $('time[datetime]').first().attr('datetime') ||
       null;
 
-    // Coba ambil penulis
+    //  ambil penulis
     const author =
       $('meta[name="author"]').attr('content') ||
       $('[class*="author"]').first().text().trim() ||
