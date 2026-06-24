@@ -142,7 +142,7 @@
 
 
 //#const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const BASE_URL ="https://be-semantic.qbyte.web.id/py/";
+const BASE_URL ="https://be-semantic.qbyte.web.id/py";
 /**
  * POST /api/search/realtime
  *
