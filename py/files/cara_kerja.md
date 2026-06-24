@@ -4,15 +4,7 @@ Scraper berita universal berbasis Python yang bisa bekerja di **portal berita ma
 
 ---
 
-## ✨ Fitur Utama
 
-- **Universal** — tidak ada whitelist domain, semua URL bisa diproses
-- **Heuristik cerdas** — sistem scoring untuk membedakan halaman artikel vs halaman lain
-- **Multi-strategi ekstraksi** — mencoba readability → CSS selector → fallback `<p>` tag
-- **Metadata lengkap** — judul, penulis, tanggal, kategori, isi artikel, jumlah kata
-- **Rate limiting** — jeda antar request untuk menghindari pemblokiran
-
----
 
 ## 🛠 Instalasi
 
