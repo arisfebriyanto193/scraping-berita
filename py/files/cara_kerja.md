@@ -201,35 +201,10 @@ Setiap artikel menghasilkan satu `dict` Python dengan struktur berikut:
 
 ---
 
-## 🌐 Portal yang Telah Diuji
-
-Scraper ini telah diuji dan bekerja dengan baik di portal-portal berikut:
-
-| Portal | URL | Catatan |
-|---|---|---|
-| Detik | `detik.com` | Stabil, metadata lengkap |
-| Kompas | `kompas.com` | Beberapa artikel JS-rendered |
-| CNN Indonesia | `cnnindonesia.com` | Stabil |
-| Antara | `antaranews.com` | Stabil |
-| Liputan6 | `liputan6.com` | Stabil |
-| Tribunnews | `tribunnews.com` | Stabil |
-| Republika | `republika.co.id` | Stabil |
-| CNBC Indonesia | `cnbcindonesia.com` | Tanggal di URL |
-| Okezone | `okezone.com` | Tanggal di URL |
-| Sindonews | `sindonews.com` | Stabil |
-
-> Portal yang banyak menggunakan JavaScript rendering (seperti sebagian Kompas dan Tempo) mungkin menghasilkan konten yang tidak lengkap karena scraper ini tidak menggunakan headless browser.
 
 ---
 
-## ⚠️ Catatan Penting
 
-- Gunakan scraper ini untuk keperluan pribadi, riset, atau edukasi.
-- Patuhi `robots.txt` dan syarat penggunaan masing-masing portal.
-- Atur `DELAY_DETIK` yang wajar (minimal 1 detik) agar tidak membebani server.
-- Beberapa portal menerapkan proteksi anti-bot — jika diblokir, coba tambah delay atau gunakan rotating User-Agent.
-
----
 
 ## 📦 Dependencies
 
