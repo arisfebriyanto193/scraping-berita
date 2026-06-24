@@ -31,7 +31,8 @@ CORS(app, resources={
         "origins": [
             "http://localhost:3000",
             "http://localhost:3001",
-            "https://*.vercel.app",     # sesuaikan jika deploy
+            "https://*.vercel.app",
+            "https://*.qbyte.web.id",# sesuaikan jika deploy
         ]
     }
 })
