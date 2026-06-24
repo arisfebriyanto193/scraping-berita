@@ -1,9 +1,12 @@
 /**
  * universal.js - Universal Auto-Scraper
  *
- * Mode: Auto — Bisa scrape portal berita apapun dari URL yang diberikan user.
- * Menggunakan @extractus/article-extractor untuk ekstraksi konten otomatis.
- * Fallback ke cheerio untuk parsing link artikel dari halaman listing.
+ * Mode: Direct — Ekstrak konten berita langsung dari URL yang diberikan.
+ * Menggunakan @extractus/article-extractor sebagai metode utama.
+ * Fallback ke cheerio untuk ekstraksi konten mentah dari halaman itu sendiri.
+ *
+ * ⚠️ Scraper ini TIDAK mencari / follow sub-link di dalam halaman.
+ *    Hanya mengekstrak berita dari URL yang dimasukkan secara langsung.
  */
 
 import axios from 'axios';
@@ -45,9 +48,9 @@ async function fetchHtml(url) {
 }
 
 /**
- * Extract artikel dari URL artikel menggunakan @extractus/article-extractor
+ * Metode utama: ekstrak artikel menggunakan @extractus/article-extractor
  */
-async function extractArticle(url, sourceName) {
+async function extractWithLibrary(url, sourceName) {
   try {
     const article = await extract(url, {}, {
       headers: {
@@ -56,13 +59,13 @@ async function extractArticle(url, sourceName) {
       },
     });
 
-    if (!article || !article.title || article.title.length < 10) return null;
+    if (!article || !article.title || article.title.length < 5) return null;
 
     const content = article.content
       ? article.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
       : '';
 
-    if (content.length < 80) return null;
+    if (content.length < 50) return null;
 
     return {
       title: article.title.trim(),
@@ -75,77 +78,135 @@ async function extractArticle(url, sourceName) {
       category: 'umum',
     };
   } catch (err) {
-    console.error(`[Universal] Extract gagal ${url}:`, err.message);
+    console.error(`[Universal] article-extractor gagal untuk ${url}:`, err.message);
     return null;
   }
 }
 
 /**
- * Kumpulkan link artikel dari halaman portal (listing page)
- * Gunakan cheerio untuk parse semua <a> yang kemungkinan adalah artikel
+ * Fallback: ekstrak konten mentah dari HTML menggunakan cheerio
+ * Mengambil teks dari elemen artikel / konten utama halaman itu sendiri.
  */
-function extractArticleLinks(html, baseUrl) {
-  const $ = cheerio.load(html);
-  const links = new Set();
+function extractWithCheerio(html, url, sourceName) {
+  try {
+    const $ = cheerio.load(html);
 
-  const baseDomain = new URL(baseUrl).origin;
+    // Hapus elemen yang tidak relevan
+    $('script, style, nav, header, footer, aside, .ads, .advertisement, .sidebar, .comment, .related').remove();
 
-  $('a[href]').each((_, el) => {
-    const href = $(el).attr('href');
-    if (!href) return;
+    // Coba ambil judul dari tag yang umum dipakai
+    const title =
+      $('h1').first().text().trim() ||
+      $('meta[property="og:title"]').attr('content')?.trim() ||
+      $('title').text().trim() ||
+      '';
 
-    let fullUrl;
-    try {
-      fullUrl = href.startsWith('http') ? href : new URL(href, baseDomain).href;
-    } catch {
-      return;
+    // Coba ambil konten dari elemen artikel yang umum
+    const contentSelectors = [
+      'article',
+      '[class*="article-body"]',
+      '[class*="article-content"]',
+      '[class*="post-content"]',
+      '[class*="entry-content"]',
+      '[class*="detail-content"]',
+      '[class*="content-body"]',
+      '[class*="news-content"]',
+      'main',
+      '.content',
+    ];
+
+    let contentText = '';
+    for (const sel of contentSelectors) {
+      const el = $(sel).first();
+      if (el.length) {
+        contentText = el.text().replace(/\s+/g, ' ').trim();
+        if (contentText.length > 100) break;
+      }
     }
 
-    if (!fullUrl.startsWith(baseDomain) && !fullUrl.includes(new URL(baseUrl).hostname)) return;
+    // Fallback: ambil semua <p> jika tidak ada elemen artikel
+    if (contentText.length < 100) {
+      contentText = $('p')
+        .map((_, el) => $(el).text().trim())
+        .get()
+        .filter(t => t.length > 30)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
 
-    if (fullUrl === baseUrl || fullUrl === baseUrl + '/') return;
-    if (fullUrl.includes('#')) return;
-    if (/\.(jpg|jpeg|png|gif|svg|pdf|zip|css|js)$/i.test(fullUrl)) return;
-    if (/\/(tag|tags|category|kategori|author|penulis|page|search)\//i.test(fullUrl)) return;
+    if (!title || contentText.length < 80) return null;
 
-    const path = new URL(fullUrl).pathname;
-    if (path === '/' || path === '') return;
+    // Coba ambil gambar utama
+    const imageUrl =
+      $('meta[property="og:image"]').attr('content') ||
+      $('article img').first().attr('src') ||
+      null;
 
-    const segments = path.split('/').filter(Boolean);
-    if (segments.length < 1) return;
+    // Coba ambil tanggal publikasi
+    const publishedDate =
+      $('meta[property="article:published_time"]').attr('content') ||
+      $('time[datetime]').first().attr('datetime') ||
+      null;
 
-    links.add(fullUrl);
-  });
+    // Coba ambil penulis
+    const author =
+      $('meta[name="author"]').attr('content') ||
+      $('[class*="author"]').first().text().trim() ||
+      null;
 
-  return [...links];
-}
-
-/**
- * Deteksi apakah URL adalah halaman artikel tunggal atau halaman listing
- * Heuristik: URL artikel biasanya panjang, punya angka ID, atau path > 2 level
- */
-function isLikelySingleArticle(url) {
-  try {
-    const parsed = new URL(url);
-    const path = parsed.pathname;
-    const segments = path.split('/').filter(Boolean);
-
-    if (/\d{5,}/.test(path)) return true;
-    if (/\d{4}\/\d{2}\/\d{2}/.test(path)) return true;
-    if (/-[a-z0-9]{6,}$/.test(path)) return true;
-    if (segments.length >= 3) return true;
-
-    return false;
-  } catch {
-    return false;
+    return {
+      title,
+      content: contentText,
+      url,
+      source: sourceName,
+      published_date: publishedDate,
+      author: author || null,
+      image_url: imageUrl,
+      category: 'umum',
+    };
+  } catch (err) {
+    console.error(`[Universal] Cheerio fallback gagal untuk ${url}:`, err.message);
+    return null;
   }
 }
 
 /**
- * Main: Scrape dari satu URL portal
- * Bisa berupa halaman listing (homepage / kategori) atau artikel langsung
+ * Ekstrak berita langsung dari URL yang diberikan.
+ * Coba article-extractor terlebih dahulu, lalu fallback ke cheerio.
  */
-export async function scrapeUniversal(portalUrl, maxArticles = 5, query = '') {
+async function extractDirectFromUrl(url, sourceName) {
+  console.log(`[Universal] Mengekstrak konten dari: ${url}`);
+
+  // Coba metode utama dulu
+  const fromLibrary = await extractWithLibrary(url, sourceName);
+  if (fromLibrary) {
+    console.log(`[Universal] ✅ (article-extractor) ${fromLibrary.title.substring(0, 70)}`);
+    return fromLibrary;
+  }
+
+  // Fallback: parse HTML mentah dengan cheerio
+  console.log(`[Universal] ⚠️ article-extractor tidak cukup, fallback ke cheerio...`);
+  try {
+    const html = await fetchHtml(url);
+    const fromCheerio = extractWithCheerio(html, url, sourceName);
+    if (fromCheerio) {
+      console.log(`[Universal] ✅ (cheerio) ${fromCheerio.title.substring(0, 70)}`);
+      return fromCheerio;
+    }
+  } catch (err) {
+    console.error(`[Universal] Gagal fetch HTML untuk fallback ${url}:`, err.message);
+  }
+
+  console.warn(`[Universal] ❌ Tidak bisa mengekstrak konten dari: ${url}`);
+  return null;
+}
+
+/**
+ * Main: Scrape langsung dari URL yang diberikan.
+ * Mengekstrak berita dari halaman tersebut saja — tidak follow sub-link.
+ */
+export async function scrapeUniversal(portalUrl, maxArticles = 1, query = '') {
   const results = [];
   const portalName = (() => {
     try {
@@ -155,55 +216,26 @@ export async function scrapeUniversal(portalUrl, maxArticles = 5, query = '') {
     }
   })();
 
-  console.log(`[Universal] Scraping: ${portalUrl}`);
+  console.log(`[Universal] Scraping langsung: ${portalUrl}`);
 
   try {
-    if (isLikelySingleArticle(portalUrl)) {
-      const article = await extractArticle(portalUrl, portalName);
-      if (article) results.push(article);
-      return results;
-    }
-
-    const html = await fetchHtml(portalUrl);
-    let links = extractArticleLinks(html, portalUrl);
-
-    if (query) {
-      const qLower = query.toLowerCase();
-      const qWords = qLower.split(/\s+/).filter(w => w.length > 2);
-      const scored = links.map(link => {
-        const linkLower = link.toLowerCase();
-        const score = qWords.reduce((acc, w) => acc + (linkLower.includes(w) ? 1 : 0), 0);
-        return { link, score };
-      });
-      scored.sort((a, b) => b.score - a.score);
-      links = scored.map(s => s.link);
-    }
-
-    links = links.slice(0, maxArticles * 3);
-
-    console.log(`[Universal] Ditemukan ${links.length} kandidat link dari ${portalName}`);
-
-    for (const url of links) {
-      if (results.length >= maxArticles) break;
-      await sleep(300);
-      const article = await extractArticle(url, portalName);
-      if (article) {
-        results.push(article);
-        console.log(`[Universal] ✅ ${article.title.substring(0, 60)}`);
-      }
+    const article = await extractDirectFromUrl(portalUrl, portalName);
+    if (article) {
+      results.push(article);
     }
   } catch (err) {
     console.error(`[Universal] Gagal scrape ${portalUrl}:`, err.message);
   }
 
-  console.log(`[Universal] ${portalName}: ${results.length} artikel berhasil`);
+  console.log(`[Universal] ${portalName}: ${results.length} artikel berhasil di-ekstrak`);
   return results;
 }
 
 /**
- * Scrape dari banyak portal URL sekaligus secara paralel
+ * Scrape dari banyak URL sekaligus secara paralel.
+ * Setiap URL di-ekstrak langsung (tidak crawl sub-link).
  */
-export async function scrapeMultiplePortals(portalUrls, maxPerSource = 5, query = '') {
+export async function scrapeMultiplePortals(portalUrls, maxPerSource = 1, query = '') {
   const tasks = portalUrls.map(url => scrapeUniversal(url, maxPerSource, query));
   const settled = await Promise.allSettled(tasks);
 

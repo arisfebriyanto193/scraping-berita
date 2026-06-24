@@ -6,6 +6,11 @@
 # ENVIRONMENT FILES (JANGAN DI-COMMIT!)
 # ============================================================
 
+
+
+
+/py/files/__pycache__
+
 **/.env.local
 **/.env.production
 **/.env.development

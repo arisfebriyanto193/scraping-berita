@@ -525,12 +525,24 @@ export default function RealtimeSearch() {
               }}>
                 {article.source}
               </span>
-              {article.distance !== undefined && (
-                <div className="score-badge" title="Sentence Embedding Score: mendekati 0 = paling relevan">
-                  <Sparkles size={12} />
-                  Score: {article.distance.toFixed(4)}
-                </div>
-              )}
+              {article.distance != null && (() => {
+                const sim = Number(article.raw_similarity ?? 0);
+                // Gunakan raw_similarity (nilai absolut) untuk warna badge
+                // agar artikel yang tidak relevan tidak salah tampil hijau
+                const color = sim >= 0.10 ? '#4ade80' : sim >= 0.03 ? '#facc15' : '#f87171';
+                const label = sim >= 0.10 ? 'Relevan' : sim >= 0.03 ? 'Cukup' : 'Kurang';
+                const d = Number(article.distance);
+                return (
+                  <div
+                    className="score-badge"
+                    title={`TF-IDF Similarity\nRaw similarity: ${sim.toFixed(4)}\nRank score: ${d.toFixed(4)} (0=terbaik dalam batch)`}
+                    style={{ color }}
+                  >
+                    <Sparkles size={12} />
+                    {label} ({sim.toFixed(3)})
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Title */}
@@ -550,7 +562,9 @@ export default function RealtimeSearch() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.75rem', borderTop: '1px solid var(--surface-border)', marginTop: 'auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                 <Calendar size={13} />
-                {article.published_date ? format(new Date(article.published_date), 'dd MMM yyyy') : 'Unknown'}
+                {article.published_date && !isNaN(new Date(article.published_date).getTime()) 
+                  ? format(new Date(article.published_date), 'dd MMM yyyy') 
+                  : 'Unknown'}
               </div>
               <a href={article.url} target="_blank" rel="noopener noreferrer"
                 className="nav-link"
