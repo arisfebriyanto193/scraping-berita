@@ -1,13 +1,4 @@
-/**
- * universal.js - Universal Auto-Scraper
- *
- * Mode: Direct — Ekstrak konten berita langsung dari URL yang diberikan.
- * Menggunakan @extractus/article-extractor sebagai metode utama.
- * Fallback ke cheerio untuk ekstraksi konten mentah dari halaman itu sendiri.
- *
- * ⚠️ Scraper ini TIDAK mencari / follow sub-link di dalam halaman.
- *    Hanya mengekstrak berita dari URL yang dimasukkan secara langsung.
- */
+
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
