@@ -193,7 +193,7 @@ def compute_similarity_scores(query: str, articles: list) -> dict:
             for art in articles:
                 url = art["url"]
                 norm_d = round((raw_dist[url] - d_min) / span, 4)
-                result[url] = (norm_d, raw_sim[url])
+                result[url] = (norm_d, raw_sim[url], round(raw_dist[url], 4))
 
             log.info(
                 f"Semantic raw similarity range: "
@@ -223,7 +223,8 @@ def compute_similarity_scores(query: str, articles: list) -> dict:
         for url, freq in freq_map.items():
             raw_sim  = round(freq / f_max, 4)           # 0..1 (absolut)
             norm_d   = round(1.0 - (freq - f_min) / span, 4)  # normalized distance
-            result[url] = (norm_d, raw_sim)
+            raw_dist = round(1.0 - raw_sim, 4)
+            result[url] = (norm_d, raw_sim, raw_dist)
         return result
 
 
@@ -327,25 +328,30 @@ def search_realtime():
         scraped = filter_by_date(scraped, filters)
 
     # ── Similarity scoring (jika ada query) ───────────────────────
-    score_map = {}  # {url: (normalized_distance, raw_similarity)}
+    score_map = {}  # {url: (normalized_distance, raw_similarity, raw_distance)}
     if query and scraped:
         score_map = compute_similarity_scores(query, scraped)
         # Sort: normalized_distance terkecil dulu (paling relevan dalam batch)
-        scraped.sort(key=lambda a: score_map.get(a["url"], (1.0, 0.0))[0])
+        scraped.sort(key=lambda a: score_map.get(a["url"], (1.0, 0.0, 1.0))[0])
 
     # ── Format response ───────────────────────────────────────────
     def build_response(art, i):
         r = article_to_response(art, i)
         if query and art["url"] in score_map:
-            norm_d, raw_sim = score_map[art["url"]]
+            norm_d, raw_sim, raw_dist = score_map[art["url"]]
             r["distance"]     = norm_d    # untuk sorting display
             r["raw_similarity"] = raw_sim  # untuk badge warna (nilai jujur)
+            r["raw_distance"] = raw_dist
         else:
             r["distance"]       = None
             r["raw_similarity"] = None
+            r["raw_distance"]   = None
         return r
 
-    results = [build_response(art, i) for i, art in enumerate(scraped)]
+    results = []
+    for i, art in enumerate(scraped):
+        r = build_response(art, i)
+        results.append(r)
 
     query_time = round(time.perf_counter() - t_start, 3)
     log.info(f"Selesai: {len(results)} artikel dalam {query_time}s")
