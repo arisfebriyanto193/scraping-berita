@@ -244,7 +244,7 @@ def search_realtime():
     {
         "query":       "string (opsional)",
         "custom_urls": ["https://portal1.com", ...],   // wajib di mode auto
-        "top_k":       10,
+        "top_k":       15,
         "mode":        "auto",
         "filters": {
             "date_preset": "today" | "last_7_days" | "this_month" | "this_year" | "",
@@ -253,10 +253,11 @@ def search_realtime():
         }
     }
 
-    Response:
+    Response:(Opsional) Silakan masuk ke 
+
     {
         "results":    [...],
-        "total":      10,
+        "total":      16,
         "query_time": 3.14,
         "mode":       "auto"
     }

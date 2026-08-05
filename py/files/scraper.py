@@ -29,7 +29,7 @@ except ImportError:
 SUMBER_BERITA = "https://www.detik.com/"
 
 # Berapa banyak artikel yang ingin diambil?
-JUMLAH_BERITA = 10
+JUMLAH_BERITA = 15
 
 # Jeda antar request (detik) — hindari banned
 DELAY_DETIK = 1.0

@@ -155,7 +155,7 @@ const BASE_URL =  "http://localhost:5055";
  *
  * @returns {Promise<{ results: Article[], total: number, query_time: number }>}
  */
-export async function searchRealtime({ query = "", custom_urls = [], top_k = 10, mode = "auto", filters = {} }) {
+export async function searchRealtime({ query = "", custom_urls = [], top_k = 15, mode = "auto", filters = {} }) {
   const res = await fetch(`${BASE_URL}/api/search/realtime`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },

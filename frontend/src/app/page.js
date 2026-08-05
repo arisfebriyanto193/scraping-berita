@@ -182,7 +182,7 @@ export default function RealtimeSearch() {
       const res = await searchRealtime({
         query,
         filters: activeFilters,
-        top_k: 10,
+        top_k: 15,
         mode,
         custom_urls,
       });
